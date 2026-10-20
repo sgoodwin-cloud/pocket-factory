@@ -30,6 +30,18 @@ export function loadProgress() {
   return { best: {}, last: null };
 }
 
+// Erase every saved layout and all progress: back to a fresh install.
+export function resetAll() {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PREFIX)) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+  } catch (e) { /* storage unavailable */ }
+}
+
 export function saveProgress(p) {
   try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); } catch (e) { /* storage unavailable */ }
 }

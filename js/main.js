@@ -4,7 +4,7 @@ import { createGame, setLevel, step, STEP } from './sim.js';
 import { createRenderer } from './render.js';
 import { createUI, isUnlocked } from './ui.js';
 import { attachInput } from './input.js';
-import { loadSavedLayout, saveLayout, loadProgress, saveProgress } from './save.js';
+import { loadSavedLayout, saveLayout, loadProgress, saveProgress, resetAll } from './save.js';
 
 const progress = loadProgress();
 let current = 0;
@@ -35,6 +35,12 @@ const actions = {
     playing = false;
     ui.renderLevels(progress);
     ui.showScreen('levels');
+  },
+  resetProgress() {
+    resetAll();
+    progress.best = {};
+    progress.last = null;
+    ui.renderLevels(progress);
   },
   next() {
     if (current + 1 < LEVELS.length && isUnlocked(progress, current + 1)) actions.openLevel(current + 1);

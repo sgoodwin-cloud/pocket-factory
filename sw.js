@@ -1,5 +1,5 @@
 // Offline caching. Bump VERSION whenever any file changes so phones pick up the update.
-const VERSION = 'pf-v0.2.0';
+const VERSION = 'pf-v0.2.1';
 const FILES = [
   './',
   './index.html',

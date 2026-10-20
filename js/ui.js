@@ -160,6 +160,23 @@ export function createUI(game, actions) {
     });
   };
 
+  // Reset needs a second tap within a few seconds, so it can't happen by accident.
+  let resetTimer = null;
+  const resetBtn = $('reset');
+  const disarm = () => { clearTimeout(resetTimer); resetBtn.classList.remove('armed'); resetBtn.textContent = 'Reset progress'; };
+  resetBtn.onclick = () => {
+    if (!resetBtn.classList.contains('armed')) {
+      resetBtn.classList.add('armed');
+      resetBtn.textContent = 'Tap again to erase all stars and layouts';
+      resetTimer = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    actions.resetProgress();
+    resetBtn.textContent = 'Progress reset';
+    resetTimer = setTimeout(disarm, 2000);
+  };
+
   ui.showScreen = name => {
     $('levels').hidden = name !== 'levels';
     $('play').hidden = name !== 'play';

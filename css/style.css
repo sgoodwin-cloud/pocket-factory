@@ -97,6 +97,8 @@ button{-webkit-tap-highlight-color:transparent}
 .lv.next{border-color:var(--accent)}
 .lv.locked{opacity:.45;cursor:default}
 .lv.locked .n{color:var(--muted)}
+.reset{display:block;margin:28px auto 0;background:none;border:1px solid var(--line);border-radius:8px;color:var(--muted);font:500 12px var(--mono);padding:10px 16px;cursor:pointer}
+.reset.armed{border-color:var(--bad);color:var(--bad)}
 .lock{width:18px;height:18px;color:var(--muted)}
 
 /* Level complete */

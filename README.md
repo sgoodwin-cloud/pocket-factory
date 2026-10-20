@@ -14,10 +14,15 @@ A Factorio-style automation puzzle on a tiny grid, built for the phone. Plain HT
 | `js/save.js` | Saving and loading layouts in localStorage |
 | `js/main.js` | Entry point and main loop |
 | `sw.js` + `manifest.json` | Offline caching and home-screen install |
+| `tools/verify-levels.mjs` | Proves every level is solvable at three stars (`node tools/verify-levels.mjs`) |
 
 ## Releasing a change
 
 Bump `VERSION` in `sw.js` whenever any file changes, otherwise installed copies keep serving the old cached files.
+
+## Adding a level
+
+Add it to `LEVELS` in `js/levels.js`, then add a working solution to `tools/verify-levels.mjs` and run it. The star 3 budget should match the best solution found.
 
 ## Running locally
 

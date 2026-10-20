@@ -17,37 +17,70 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div class="app">
+
+<!-- Level select -->
+<section class="screen" id="levels" aria-label="Level select">
+  <header class="title">
+    <h1>Pocket Factory</h1>
+    <div class="total"><span id="total-stars">0</span> / <span id="max-stars">0</span> <svg class="star on" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></div>
+  </header>
+  <div id="level-list"></div>
+</section>
+
+<!-- Play screen -->
+<div class="app" id="play" hidden>
+  <div class="topbar">
+    <button class="back" id="back" aria-label="Back to levels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>Levels</button>
+    <div class="lvtitle"><span id="lv-num"></span> <span id="lv-name"></span></div>
+    <div class="best" id="lv-best"></div>
+  </div>
+
   <header class="readout">
     <div>
-      <div class="label" id="rate-label">Gears delivered to hub</div>
+      <div class="label" id="rate-label">Delivered to hub</div>
       <div class="big"><span id="rate">0</span><small>/ <span id="target">30</span> per min</small></div>
     </div>
-    <div class="side">
-      <div id="chip" hidden><span class="chip">Target met</span></div>
-      <div>Plates <span id="plates">0</span>/min</div>
-      <div>Ore <span id="ores">0</span>/min</div>
-    </div>
+    <div class="rules" id="rules"></div>
     <div class="bar" id="bar"><i id="barfill"></i></div>
+    <div class="verify" id="verify"></div>
   </header>
+
+  <div class="guide" id="guide" hidden></div>
 
   <main class="floor" id="floor"><canvas id="cv" aria-label="Factory floor"></canvas></main>
 
   <div class="hint" id="hint" aria-live="polite"></div>
 
-  <nav class="tray" aria-label="Build tools">
-    <button class="tool on" data-tool="belt" id="t-belt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6-5 6 5M6 15l6-5 6 5M6 21l6-5 6 5"/></svg>Belt</button>
-    <button class="tool" data-tool="miner" id="t-miner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 16l4-9 4 9z" fill="currentColor"/></svg>Miner</button>
-    <button class="tool" data-tool="furnace" id="t-furnace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="13" r="4" fill="currentColor"/></svg>Furnace</button>
-    <button class="tool" data-tool="assembler" id="t-assembler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="3.5"/><path d="M12 6v2.5M12 15.5V18M6 12h2.5M15.5 12H18"/></svg>Assemble</button>
-    <button class="tool" data-tool="erase" id="t-erase"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Remove</button>
+  <nav class="tray" id="tray" aria-label="Build tools">
+    <button class="tool on" data-tool="belt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6-5 6 5M6 15l6-5 6 5M6 21l6-5 6 5"/></svg>Belt</button>
+    <button class="tool" data-tool="miner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 16l4-9 4 9z" fill="currentColor"/></svg>Miner</button>
+    <button class="tool" data-tool="furnace"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="13" r="4" fill="currentColor"/></svg>Furnace</button>
+    <button class="tool" data-tool="assembler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="3.5"/><path d="M12 6v2.5M12 15.5V18M6 12h2.5M15.5 12H18"/></svg>Assemble</button>
+    <button class="tool" data-tool="erase"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>Remove</button>
   </nav>
   <div class="acts">
     <button class="act" id="undo">Undo</button>
     <button class="act" id="pause">Pause</button>
-    <button class="act" id="clear">Clear floor</button>
+    <button class="act" id="speed" aria-label="Simulation speed">1×</button>
+    <button class="act" id="clear">Clear</button>
   </div>
 </div>
+
+<!-- Level complete -->
+<div class="modal" id="complete" hidden role="dialog" aria-modal="true" aria-labelledby="done-title">
+  <div class="card">
+    <div class="label" id="done-kicker">Level complete</div>
+    <h2 id="done-title">Target held</h2>
+    <div class="bigstars" id="done-stars"></div>
+    <ul class="checks" id="done-checks"></ul>
+    <p class="note" id="done-note"></p>
+    <div class="modal-acts">
+      <button class="act" id="done-stay">Keep optimising</button>
+      <button class="act primary" id="done-next">Next level</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

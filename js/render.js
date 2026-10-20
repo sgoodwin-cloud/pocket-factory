@@ -1,5 +1,6 @@
 // Canvas drawing: terrain, grid, buildings, items, overlays.
-import { DX, DY, RECIPE, BELT_SPEED, inB } from './sim.js';
+import { DX, DY, RECIPE, BELT_SPEED, BELT_TICKS, inB } from './sim.js';
+import { PLURAL } from './levels.js';
 
 export const HOLD_MS = 450;
 
@@ -26,6 +27,7 @@ export function createRenderer(cv, floorEl, game) {
   }
   new ResizeObserver(fit).observe(floorEl);
   fit();
+  r.fit = fit;
 
   r.tileAt = e => {
     const b = cv.getBoundingClientRect();
@@ -119,7 +121,7 @@ export function createRenderer(cv, floorEl, game) {
       // progress
       if (c.busy) {
         ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px + S * 0.18, py + S * 0.78, S * 0.64, S * 0.05);
-        ctx.fillStyle = C.ok; ctx.fillRect(px + S * 0.18, py + S * 0.78, S * 0.64 * Math.min(1, c.timer / RECIPE[t].time), S * 0.05);
+        ctx.fillStyle = C.ok; ctx.fillRect(px + S * 0.18, py + S * 0.78, S * 0.64 * Math.min(1, c.timer / RECIPE[t].ticks), S * 0.05);
       }
       // queued inputs
       if (RECIPE[t].in) {
@@ -162,7 +164,7 @@ export function createRenderer(cv, floorEl, game) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('HUB', hcx, hcy - S * 0.2);
     ctx.fillStyle = C.muted; ctx.font = `500 ${Math.round(S * 0.24)}px ${MONO}`;
-    ctx.fillText(`${game.hubTotal} ${level.target.item}s`, hcx, hcy + S * 0.3);
+    ctx.fillText(`${game.hubTotal} ${PLURAL[level.target.item]}`, hcx, hcy + S * 0.3);
     // buildings
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grid[y][x];
@@ -172,7 +174,7 @@ export function createRenderer(cv, floorEl, game) {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grid[y][x];
       if (c && c.t === 'belt' && c.item) {
-        const o = (c.prog - 0.5) * S;
+        const o = (c.prog / BELT_TICKS - 0.5) * S;
         drawItem(c.item, x * S + S / 2 + DX[c.d] * o, y * S + S / 2 + DY[c.d] * o);
       }
     }

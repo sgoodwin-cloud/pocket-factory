@@ -16,7 +16,7 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | M0 Repo and offline shell | Done, 20 Oct |
 | M1 Control refinements and code split | Done, 20 Oct (no control changes needed) |
 | M2 Level framework, five Tier 1 levels | Done, 21 Oct (v4 play-test tweaks approved and merged) |
-| M3 Logistics (tunnels, crossings, splitters, Tier 2) | Built 21 Oct (v5) on branch `m3`, awaiting play-test |
+| M3 Logistics (tunnels, crossings, splitters, Tier 2) | Done, 21 Oct (v5 approved and merged) |
 | M4 Copper and circuits | Next |
 | M5–M7 | Not started |
 
@@ -75,3 +75,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | v4 approved after preview testing; `m2-tweaks` merged to `main`. M2 complete |
 | 21 Oct 2026 | M3 design: both tunnels and crossings plus an auto-splitter (Stuart's choice). Tapping a machine now inspects it and a second tap turns it. Full belts fixed to move as one line in every direction |
 | 21 Oct 2026 | v5: Assembly Line added to Tier 1; Tier 2 Logistics with eight levels (three guided tutorials: Under the Wall, Crossroads, Fork). 14 levels in all. Tutorial banner given a fixed height so the floor doesn't jump between steps |
+| 21 Oct 2026 | v5 approved after preview testing; `m3` merged to `main`. M3 complete |

@@ -1,6 +1,6 @@
 // Entry point: level flow, progress, the main loop, and offline support with the update banner.
 // Bump APP_VERSION together with VERSION in sw.js on every release.
-const APP_VERSION = '7';
+const APP_VERSION = '8';
 import { LEVELS } from './levels.js';
 import { createGame, setLevel, step, STEP } from './sim.js';
 import { createRenderer } from './render.js';

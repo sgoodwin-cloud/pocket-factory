@@ -57,7 +57,10 @@
 
   <main class="floor" id="floor"><canvas id="cv" aria-label="Factory floor"></canvas></main>
 
-  <div class="hint" id="hint" aria-live="polite"></div>
+  <div class="hintbox" id="hintbox">
+    <div class="hint" id="hint" aria-live="polite"></div>
+    <div class="recipes" id="recipes" hidden></div>
+  </div>
 
   <nav class="tray" id="tray" aria-label="Build tools">
     <button class="tool on" data-tool="belt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6-5 6 5M6 15l6-5 6 5M6 21l6-5 6 5"/></svg>Belt</button>

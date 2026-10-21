@@ -1,10 +1,12 @@
 // Text layouts, used for level starters, solutions and tests. Each row is a string of two-character tokens:
-//   first: b belt, m miner, f furnace, a assembler, t tunnel entrance, T tunnel exit,
+//   first: b belt, m miner, f furnace, a assembler (gears), w assembler (wire),
+//          c assembler (circuits), t tunnel entrance, T tunnel exit,
 //          x crossing, s splitter, . empty
 //   second: direction ^ > v <  (or . for crossings, splitters and empty tiles)
 // A tunnel entrance pairs with the first exit ahead of it in the same direction.
 // Spaces are ignored, so rows can be spaced out for readability.
-const TYPE = { b: 'belt', m: 'miner', f: 'furnace', a: 'assembler', t: 'tin', T: 'tout', x: 'cross', s: 'split' };
+const TYPE = { b: 'belt', m: 'miner', f: 'furnace', a: 'assembler', w: 'assembler', c: 'assembler', t: 'tin', T: 'tout', x: 'cross', s: 'split' };
+const RECIPE_OF = { a: 'gear', w: 'wire', c: 'circuit' };
 const DIR = { '^': 0, '>': 1, v: 2, '<': 3, '.': 0 };
 const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
 
@@ -21,8 +23,9 @@ export function parseLayout(rows) {
     if (tok === '..') return;
     const t = TYPE[tok[0]], d = DIR[tok[1]];
     if (!t || d == null) throw new Error(`bad token "${tok}" at ${x},${y}`);
-    let len;
+    let len = RECIPE_OF[tok[0]];
     if (t === 'tin' || t === 'tout') {
+      len = undefined;
       const s = t === 'tin' ? 1 : -1, want = t === 'tin' ? 'T' : 't';
       for (let k = 1; k <= 5 && !len; k++) {
         const xx = x + DX[d] * k * s, yy = y + DY[d] * k * s;

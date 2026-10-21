@@ -54,7 +54,7 @@ export function attachInput(cv, game, renderer, ui) {
       last: { x: p.x, y: p.y }, cur: { x: p.x, y: p.y },
       moved: false, count: 0, t0: performance.now(),
       dir: tool === 'belt' ? beltDir : UNAIMED.includes(tool) ? 0 : defaultDir,
-      hold: false, held: false, ghost: false, tunnel: false, end: null,
+      hold: false, held: false, ghost: false, tunnel: false, end: null, recipe: ui.recipe,
     };
     const occ = inB(game, p.x, p.y) && game.grid[p.y][p.x];
     if (tool === 'erase') { ui.select(null); eraseAt(p.x, p.y); return; }
@@ -162,7 +162,7 @@ export function attachInput(cv, game, renderer, ui) {
         }
       } else if (g.ghost && !g.ghostBad) {
         beginChange(game);
-        game.grid[y][x] = cell(g.tool, g.dir, undefined, game.tick);
+        game.grid[y][x] = cell(g.tool, g.dir, g.tool === 'assembler' ? ui.recipe : undefined, game.tick);
         buzz();
         if (UNAIMED.includes(g.tool)) ui.setHint(`<b>${NAME[g.tool]} placed.</b>`);
         else {

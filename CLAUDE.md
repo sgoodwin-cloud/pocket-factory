@@ -10,6 +10,7 @@ Read `DESIGN.md` first. It holds the milestone status, code structure, save form
 - Releases go to a test branch first, with a preview artifact for Stuart; merge to `main` only after he approves.
 - Saves carry `SAVE_VERSION` (`js/save.js`); upgrade old saves in `migrate()`, never wipe them.
 - Never `preventDefault()` touches outside the canvas; keep the global `[hidden]` rule; no `alert()`/`confirm()`.
+- Guide steps and hints must fit their boxes at 390 px (guide: three lines; hint: two), or the floor jumps between steps.
 - Test headlessly at 390 × 763 (Stuart's iPhone 13 as a home-screen app): play a level, look at screenshots, reload offline.
 - Update `DESIGN.md` (status, decision log, last updated) in the same commit as the change.
 - UK spelling throughout. Commit as Stuart Goodwin.

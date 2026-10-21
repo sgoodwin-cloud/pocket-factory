@@ -18,11 +18,28 @@ export const BELT_TICKS = 8;      // ticks for an item to cross one belt tile (2
 export const BELT_SPEED = TPS / BELT_TICKS;
 export const TUNNEL_MAX = 5;      // entrance to exit: at most 4 tiles underground in between
 
-export const RECIPE = {
-  miner: { ticks: 40, out: 'ore' },
-  furnace: { in: 'ore', need: 1, cap: 4, ticks: 40, out: 'plate' },
-  assembler: { in: 'plate', need: 2, cap: 6, ticks: 40, out: 'gear' },
+// Items: ore and plate are iron (their ids predate copper); cu-ore and cu-plate are copper.
+// Every machine works in 40-tick (2-second) cycles. An assembler's recipe is chosen per machine.
+export const RECIPES = {
+  gear: { in: { plate: 2 }, out: 'gear', n: 1 },
+  wire: { in: { 'cu-plate': 1 }, out: 'wire', n: 2 },
+  circuit: { in: { plate: 1, wire: 2 }, out: 'circuit', n: 1 },
 };
+export const SMELT = { ore: 'plate', 'cu-ore': 'cu-plate' };   // furnace: ore in → plate out
+export const MINED = { ore: 'ore', copper: 'cu-ore' };         // terrain → what a miner digs
+export const CYCLE = 40;
+const FURNACE_CAP = 4;
+
+// What a machine needs and makes right now: { in: { item: count }, out, n, cap(item) }.
+export function recipeOf(c, terrainAt) {
+  if (c.t === 'miner') return { in: {}, out: c.mines || 'ore', n: 1 };
+  if (c.t === 'furnace') {
+    const ore = c.ore || 'ore';
+    return { in: { [ore]: 1 }, out: SMELT[ore], n: 1 };
+  }
+  return RECIPES[c.recipe || 'gear'];
+}
+const capFor = (r, item) => r.in[item] * 3;
 
 // Win rule: once a target item reaches the hub after the last layout change, a hold timer starts.
 // The line must keep up the target rate until the timer reaches HOLD. While it runs, deliveries
@@ -43,15 +60,18 @@ export const WHY = {
   busy: 'Something is already there.',
 };
 
-// A grid cell. Fields used depend on the type:
+// A grid cell. Fields used depend on the type (extra is a tunnel's length or an assembler's recipe):
 //   belt, tout: item, prog            tin: q (items underground, each { item, prog })
 //   cross: lanes[0] vertical, lanes[1] horizontal, each { item, prog, dir } or null
 //   split: item, prog, from (side it came in), rr (last side used)
-//   machines: inv, out, busy, timer, status, done (completion ticks), born
+//   machines: inv (items waiting, by kind), out (finished items waiting to leave), busy, timer,
+//     status, done (completion ticks), born; furnace: ore (the ore it is locked to while it has any);
+//     assembler: recipe; miner: mines (set from the terrain each tick)
 //   tin/tout: len = tiles from entrance to exit
-export function cell(t, d, len, born = 0) {
-  const c = { t, d, item: null, prog: 0, inv: 0, out: 0, busy: false, timer: 0, status: 'starved', done: [], born };
-  if (t === 'tin' || t === 'tout') c.len = len;
+export function cell(t, d, extra, born = 0) {
+  const c = { t, d, item: null, prog: 0, inv: {}, out: 0, busy: false, timer: 0, status: 'starved', done: [], born };
+  if (t === 'tin' || t === 'tout') c.len = extra;
+  if (t === 'assembler') c.recipe = extra || 'gear';
   if (t === 'tin') c.q = [];
   if (t === 'cross') c.lanes = [null, null];
   if (t === 'split') { c.from = -1; c.rr = 3; }
@@ -96,9 +116,20 @@ export function loadStarter(game) {
   for (const [x, y, t, d, len] of game.level.starter || []) game.grid[y][x] = cell(t, d, len, game.tick);
 }
 
-// Layouts are saved as rows of [type, dir] (tunnel ends add a third value, len) or null.
+// Layouts are saved as rows of [type, dir] or null; tunnel ends add their length and
+// assemblers making anything but gears add their recipe.
 export function layout(game) {
-  return game.grid.map(r => r.map(c => (c ? (c.len ? [c.t, c.d, c.len] : [c.t, c.d]) : null)));
+  return game.grid.map(r => r.map(c => {
+    if (!c) return null;
+    if (c.len) return [c.t, c.d, c.len];
+    if (c.t === 'assembler' && c.recipe !== 'gear') return [c.t, c.d, c.recipe];
+    return [c.t, c.d];
+  }));
+}
+
+// Change an assembler's recipe; anything it was holding is lost.
+export function setRecipe(c, recipe) {
+  c.recipe = recipe; c.inv = {}; c.out = 0; c.busy = false; c.timer = 0;
 }
 
 export function loadLayout(game, l) {
@@ -113,7 +144,7 @@ export function canPlace(game, x, y, t) {
   const tr = game.terrain[y][x];
   if (tr === 'rock') return 'rock';
   if (tr === 'hub') return 'hub';
-  if (t === 'miner' && tr !== 'ore') return 'noore';
+  if (t === 'miner' && !MINED[tr]) return 'noore';
   return '';
 }
 
@@ -255,13 +286,25 @@ function accept(game, tx, ty, item, fx, fy) {
       if (c.item) return false;
       c.item = item; c.prog = 0; c.from = (dir + 2) % 4;
       return true;
-    default: {
-      if (fromFront) return false; // never push into a machine's output side
-      const r = RECIPE[c.t];
-      if (!r.in || r.in !== item || c.inv >= r.cap) return false;
-      c.inv++;
+    case 'furnace': {
+      if (fromFront || !SMELT[item]) return false;
+      // a furnace works on one kind of ore at a time; it switches once it is empty
+      const holding = (c.inv[c.ore] || 0) > 0 || c.busy || c.out > 0;
+      if (holding && c.ore !== item) return false;
+      if ((c.inv[item] || 0) >= FURNACE_CAP) return false;
+      c.ore = item;
+      c.inv = { [item]: (c.inv[item] || 0) + 1 };
       return true;
     }
+    case 'assembler': {
+      if (fromFront) return false;
+      const r = RECIPES[c.recipe];
+      if (!r.in[item] || (c.inv[item] || 0) >= capFor(r, item)) return false;
+      c.inv[item] = (c.inv[item] || 0) + 1;
+      return true;
+    }
+    default:
+      return false; // miners take nothing
   }
 }
 
@@ -281,15 +324,19 @@ function advance(game, c) {
       });
       break;
     default: {
-      const r = RECIPE[c.t];
-      if (!c.busy && c.out === 0) {
-        if (c.t === 'miner') { c.busy = true; c.timer = 0; }
-        else if (c.inv >= r.need) { c.inv -= r.need; c.busy = true; c.timer = 0; }
+      const r = recipeOf(c);
+      // start the next batch once fewer than one batch's worth is still waiting to leave
+      if (!c.busy && c.out < r.n) {
+        const ready = Object.entries(r.in).every(([it, k]) => (c.inv[it] || 0) >= k);
+        if (ready) {
+          for (const [it, k] of Object.entries(r.in)) c.inv[it] -= k;
+          c.busy = true; c.timer = 0; c.making = r.out;
+        }
       }
       if (c.busy) {
         c.timer++;
-        if (c.timer >= r.ticks) {
-          c.busy = false; c.out = 1;
+        if (c.timer >= CYCLE) {
+          c.busy = false; c.out += r.n;
           c.done.push(game.tick);
           while (c.done.length && c.done[0] <= game.tick - MACHINE_WINDOW) c.done.shift();
         }
@@ -350,7 +397,7 @@ function moveAll(game) {
         if (c.out > 0) {
           const tx = x + DX[c.d], ty = y + DY[c.d];
           resolveAt(tx, ty);
-          if (accept(game, tx, ty, RECIPE[c.t].out, x, y)) c.out = 0;
+          if (accept(game, tx, ty, c.making, x, y)) c.out--;
         }
         c.status = c.busy ? 'working' : (c.out > 0 ? 'blocked' : 'starved');
       }
@@ -362,7 +409,11 @@ function moveAll(game) {
 
 export function step(game) {
   game.tick++;
-  for (const row of game.grid) for (const c of row) if (c) advance(game, c);
+  game.grid.forEach((row, y) => row.forEach((c, x) => {
+    if (!c) return;
+    if (c.t === 'miner') c.mines = MINED[game.terrain[y][x]] || 'ore';
+    advance(game, c);
+  }));
   moveAll(game);
 
   // drop deliveries older than the readout window
@@ -403,11 +454,11 @@ export function rate(game, item) {
   return (n * 60 * TPS) / win;
 }
 
-// A machine's recent output per minute and how busy it has been (0..1), over up to 30 s.
+// A machine's recent output per minute, what it used, and how busy it has been (0..1), over up to 30 s.
 export function machineRates(game, c) {
-  const r = RECIPE[c.t];
+  const r = recipeOf(c);
   const win = Math.min(MACHINE_WINDOW, Math.max(10 * TPS, game.tick - c.born));
-  const n = c.done.filter(t => t > game.tick - win).length;
-  const out = (n * 60 * TPS) / win;
-  return { out, in: r.in ? out * r.need : 0, busy: Math.min(1, (n * r.ticks) / win), item: r.out, inItem: r.in };
+  const crafts = (c.done.filter(t => t > game.tick - win).length * 60 * TPS) / win;
+  const uses = Object.entries(r.in).map(([item, k]) => ({ item, perMin: crafts * k }));
+  return { out: crafts * r.n, item: r.out, uses, busy: Math.min(1, (crafts * CYCLE) / (60 * TPS)) };
 }

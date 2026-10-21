@@ -44,6 +44,13 @@ body{background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px
 .floor{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
 canvas{display:block;touch-action:none;border-radius:6px}
 
+.hintbox{display:flex;flex-direction:column;gap:6px}
+.hintbox.tall{min-height:calc(2.6em + 40px)}
+.recipes{display:flex;gap:6px;align-items:center}
+.recipes .lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-right:2px}
+.chip-r{display:flex;align-items:center;gap:5px;min-height:34px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);font:500 12px var(--mono);cursor:pointer}
+.chip-r.on{border-color:var(--accent);background:#2c2a24}
+.chip-r i{display:inline-block;width:10px;height:10px;border-radius:2px}
 .hint{min-height:2.6em;max-height:2.6em;overflow:hidden;font-size:12px;line-height:1.3;color:var(--muted)}
 .hint b{color:var(--fg);font-weight:500}
 .hint.err b{color:var(--bad)}

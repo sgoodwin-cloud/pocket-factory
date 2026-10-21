@@ -61,7 +61,7 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 ## Release process
 
 1. Make the change; run `node tools/test-sim.mjs` and `node tools/verify-levels.mjs`.
-2. Bump `APP_VERSION` (`js/main.js`) and `VERSION` (`sw.js`); add new files to `CORE`.
+2. Bump `APP_VERSION` (`js/main.js`) and `VERSION` (`sw.js`) to the same number (the install checks they match); add new files to `CORE`.
 3. Test headlessly at 390 × 763: play through, screenshots, offline reload, update from the previous version.
 4. Push to a test branch and publish a preview artifact (a single-file bundle) for Stuart.
 5. Merge to `main` after he approves. On the phone: open with signal → "Update ready" banner → tap.
@@ -84,3 +84,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | Every guide step must fit three lines at 390 px: six were four lines, which made the floor jump between steps; all shortened |
 | 21 Oct 2026 | v6 approved after preview testing; `m4` merged to `main`. M4 complete |
 | 21 Oct 2026 | v7: the floating "Update ready" button couldn't be tapped on Stuart's iPhone (it floated over other buttons, close to the home bar). Now a full-width bar at the top of the screen, in the page flow, so nothing overlaps it. On branch `fix-update-banner` |
+| 21 Oct 2026 | v7 also fixes updates installing stale files: GitHub Pages' CDN served v5 files to the v6 install, leaving Stuart's phone stuck on v5 with no banner. The service worker now fetches each file with `?v=<VERSION>` and refuses to install unless `main.js` matches its version |

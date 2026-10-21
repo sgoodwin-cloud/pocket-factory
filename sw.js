@@ -1,4 +1,5 @@
-// Bump VERSION whenever the game changes (together with APP_VERSION in js/main.js), so phones pick up the new copy.
+// Bump VERSION whenever the game changes, together with APP_VERSION in js/main.js: the number after
+// 'pocket-factory-v' must equal APP_VERSION, or installs fail on purpose (see install below).
 const VERSION = 'pocket-factory-v7';
 // Every file the game needs offline. Add any new file here.
 const CORE = [
@@ -23,9 +24,27 @@ const CORE = [
   './icons/apple-touch-icon.png',
 ];
 
-// cache: 'reload' skips the phone's web cache, so a new version never stores stale files.
+// Install: fetch every file fresh and store it under its plain address.
+// - cache: 'reload' skips the phone's own web cache.
+// - ?v=<VERSION> makes each address new to GitHub Pages' CDN, which can otherwise serve the
+//   previous version's files for a few minutes after a deploy (that left v5 files inside v6).
+// - Finally, check main.js really is this version; if not, fail the install so the phone
+//   tries again on its next update check rather than installing old files.
+const APP_VERSION = VERSION.replace('pocket-factory-v', '');
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE.map(u => new Request(u, { cache: 'reload' })))));
+  e.waitUntil((async () => {
+    const c = await caches.open(VERSION);
+    await Promise.all(CORE.map(async u => {
+      const res = await fetch(new Request(`${u}?v=${VERSION}`, { cache: 'reload' }));
+      if (!res.ok) throw new Error(`${u}: ${res.status}`);
+      await c.put(u, res);
+    }));
+    const main = await (await c.match('./js/main.js')).text();
+    if (!main.includes(`APP_VERSION = '${APP_VERSION}'`)) {
+      await caches.delete(VERSION);
+      throw new Error('fetched files are from an older version; will retry');
+    }
+  })());
 });
 
 self.addEventListener('activate', e => {

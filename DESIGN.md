@@ -85,3 +85,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | v6 approved after preview testing; `m4` merged to `main`. M4 complete |
 | 21 Oct 2026 | v7: the floating "Update ready" button couldn't be tapped on Stuart's iPhone (it floated over other buttons, close to the home bar). Now a full-width bar at the top of the screen, in the page flow, so nothing overlaps it. On branch `fix-update-banner` |
 | 21 Oct 2026 | v7 also fixes updates installing stale files: GitHub Pages' CDN served v5 files to the v6 install, leaving Stuart's phone stuck on v5 with no banner. The service worker now fetches each file with `?v=<VERSION>` and refuses to install unless `main.js` matches its version |
+| 21 Oct 2026 | v7 approved by Stuart; `fix-update-banner` merged to `main` |

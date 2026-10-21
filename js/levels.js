@@ -3,8 +3,11 @@
 // dir: 0 up, 1 right, 2 down, 3 left.
 // stars: the rules for stars 2 and 3 (star 1 is hitting the target). { tiles: n } means at most
 //   n occupied tiles, belts included; { buildings: n } means at most n machines.
-// guide: optional step-by-step coaching. Each step shows until its condition is met:
-//   'has:<type>' a building of that type exists, 'delivered' a target item reached the hub, 'win'.
+// guide: optional step-by-step coaching, shown until the level is first completed. Each step
+//   shows until its condition is met: 'has:<type>' a building of that type exists,
+//   'notbelt:x,y' that tile no longer holds a belt, 'delivered' a target item reached the hub,
+//   'win'. focus: 'timer' highlights the hold timer while the step shows.
+// target.rate must be even (see the win rule in sim.js).
 // Every level has a proven solution in tools/verify-levels.mjs.
 
 export const PLURAL = { ore: 'ore', plate: 'plates', gear: 'gears' };
@@ -29,14 +32,14 @@ export const LEVELS = [
     guide: [
       { until: 'has:miner', text: '<b>Step 1.</b> Pick <b>Miner</b> and press on an ore tile. Drag towards the hub before you let go, so its orange notch points that way.' },
       { until: 'delivered', text: '<b>Step 2.</b> Pick <b>Belt</b> and drag a path from the miner\'s notch into the hub.' },
-      { until: 'win', text: '<b>Step 3.</b> Ore is arriving. The hub checks you can hold 30 a minute. Tap the speed button to wait less.' },
+      { until: 'win', focus: 'timer', text: '<b>Step 3.</b> Ore is arriving. To finish, keep <b>30 a minute</b> flowing for <b>45 seconds</b>. The bar above is the timer, and changing the layout restarts it. Tap <b>1×</b> to speed things up.' },
     ],
   },
   {
     id: 'smelting',
     tier: 1,
     name: 'Smelting',
-    brief: 'The hub wants plates. A furnace turns ore into plates.',
+    brief: 'The hub wants plates, but this line delivers raw ore. A furnace turns ore into plates.',
     w: 6, h: 9,
     ore: [[4, 7], [5, 7], [4, 8], [5, 8]],
     rocks: [[3, 3], [4, 3]],
@@ -44,8 +47,15 @@ export const LEVELS = [
     target: { item: 'plate', rate: 30 },
     tools: ['belt', 'miner', 'furnace'],
     stars: [{ tiles: 10 }, { tiles: 8 }],
+    starter: [
+      [4, 8, 'miner', 0],
+      [4, 7, 'belt', 0], [4, 6, 'belt', 3], [3, 6, 'belt', 3],
+      [2, 6, 'belt', 0], [2, 5, 'belt', 0], [2, 4, 'belt', 0], [2, 3, 'belt', 0], [2, 2, 'belt', 0],
+    ],
     guide: [
-      { until: 'has:furnace', text: 'Machines pass items straight into a neighbour. Try a <b>furnace</b> right next to the miner\'s notch.' },
+      { until: 'notbelt:4,7', text: '<b>Step 1.</b> This line delivers ore, not plates. <b>Press and hold</b> the belt just above the miner until the red ring fills, to remove it. (The <b>Remove</b> tool works too.)' },
+      { until: 'has:furnace', text: '<b>Step 2.</b> Pick <b>Furnace</b>, press on the gap and drag upwards, so its notch points at the belt. Machines pass items straight into a neighbour.' },
+      { until: 'win', focus: 'timer', text: '<b>Step 3.</b> Plates are on their way. Hold 30 a minute for 45 seconds to finish. Then try a shorter route for more stars.' },
     ],
   },
   {

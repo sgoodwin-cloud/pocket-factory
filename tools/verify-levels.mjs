@@ -2,7 +2,7 @@
 // that the hub verifies the target and the layout earns all three stars. Also checks a few
 // near-miss layouts do NOT win. Run with: node tools/verify-levels.mjs
 import { LEVELS } from '../js/levels.js';
-import { createGame, setLevel, step, canPlace, cell, emptyGrid, TPS, scoreLayout } from '../js/sim.js';
+import { createGame, setLevel, step, canPlace, cell, emptyGrid, loadStarter, TPS, scoreLayout, rate } from '../js/sim.js';
 
 // Layouts as [x, y, type, dir]; dir 0 up, 1 right, 2 down, 3 left.
 const U = 0, R = 1, D = 2, L = 3;
@@ -13,6 +13,8 @@ const SOLUTIONS = {
     best: [[1, 6, 'miner', U], ...col(1, 5, 2, U), [1, 1, 'belt', R]],
   },
   'smelting': {
+    tutorial: { remove: [[4, 7]], add: [[4, 7, 'furnace', U]], stars: 2 },
+    misses: { 'starter only (delivers ore)': 'starter' },
     best: [[5, 7, 'miner', U], [5, 6, 'furnace', U], ...col(5, 5, 2, U).slice(0, 3), [5, 2, 'belt', L], [4, 2, 'belt', L], [3, 2, 'belt', U]],
   },
   'double-up': {
@@ -49,6 +51,12 @@ const SOLUTIONS = {
 
 function build(game, spec) {
   if (spec === 'starter') return;
+  if (spec.remove) {
+    loadStarter(game);
+    for (const [x, y] of spec.remove) game.grid[y][x] = null;
+    for (const [x, y, t, d] of spec.add) game.grid[y][x] = cell(t, d);
+    return;
+  }
   game.grid = emptyGrid(game);
   for (const [x, y, t, d] of spec) {
     const why = canPlace(game, x, y, t);
@@ -65,11 +73,12 @@ function run(level, spec, seconds = 300) {
   let win = null;
   game.onWin = s => { if (!win) win = { ...s, at: game.tick / TPS }; };
   for (let i = 0; i < seconds * TPS && !win; i++) step(game);
-  return { win, score: scoreLayout(game), perMin: game.windowCount };
+  return { win, score: scoreLayout(game), perMin: Math.round(rate(game, level.target.item)) };
 }
 
 let failures = 0;
 for (const level of LEVELS) {
+  if (level.target.rate % 2) { console.log(`✗ ${level.id}: target rate must be even`); failures++; }
   const sol = SOLUTIONS[level.id];
   if (!sol) { console.log(`✗ ${level.id}: no solution written`); failures++; continue; }
   const r = run(level, sol.best);
@@ -77,6 +86,12 @@ for (const level of LEVELS) {
   if (!ok) failures++;
   console.log(`${ok ? '✓' : '✗'} ${level.name}: ${r.win ? `won at ${r.win.at}s` : 'no win'}, ` +
     `${r.score.stats.tiles} tiles, ${r.score.stats.buildings} buildings, ${r.score.stars} stars, ${r.perMin}/${level.target.rate} per min`);
+  if (sol.tutorial) {
+    const t = run(level, sol.tutorial);
+    const tOk = t.win && t.win.stars === sol.tutorial.stars;
+    if (!tOk) failures++;
+    console.log(`   ${tOk ? '✓' : '✗'} guided fix wins with ${t.win ? t.win.stars : 0} stars at ${t.win ? t.win.at + 's' : '-'}`);
+  }
   for (const [label, spec] of Object.entries(sol.misses || {})) {
     const m = run(level, spec);
     if (m.win) failures++;

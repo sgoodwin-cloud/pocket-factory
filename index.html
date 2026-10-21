@@ -25,14 +25,19 @@
     <div class="total"><span id="total-stars">0</span> / <span id="max-stars">0</span> <svg class="star on" viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg></div>
   </header>
   <div id="level-list"></div>
-  <button class="reset" id="reset">Reset progress</button>
+  <footer class="testing">
+    <div class="label">Testing</div>
+    <button class="reset" id="unlock-all">Unlock all levels: Off</button>
+    <button class="reset" id="reset">Reset progress</button>
+    <div class="ver" id="ver"></div>
+  </footer>
 </section>
 
 <!-- Play screen -->
 <div class="app" id="play" hidden>
   <div class="topbar">
     <button class="back" id="back" aria-label="Back to levels"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>Levels</button>
-    <div class="lvtitle"><span id="lv-num"></span> <span id="lv-name"></span></div>
+    <button class="lvtitle" id="lv-info" aria-label="Show the level brief"><span id="lv-num"></span> <span id="lv-name"></span><svg class="info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
     <div class="best" id="lv-best"></div>
   </div>
 
@@ -42,8 +47,10 @@
       <div class="big"><span id="rate">0</span><small>/ <span id="target">30</span> per min</small></div>
     </div>
     <div class="rules" id="rules"></div>
-    <div class="bar" id="bar"><i id="barfill"></i></div>
-    <div class="verify" id="verify"></div>
+    <div class="timer" id="timer">
+      <div class="bar" id="bar"><i id="barfill"></i></div>
+      <div class="verify" id="verify"></div>
+    </div>
   </header>
 
   <div class="guide" id="guide" hidden></div>
@@ -67,6 +74,19 @@
   </div>
 </div>
 
+<!-- Level brief -->
+<div class="modal" id="brief" hidden role="dialog" aria-modal="true" aria-labelledby="brief-title">
+  <div class="card brief">
+    <div class="label" id="brief-kicker"></div>
+    <h2 id="brief-title"></h2>
+    <p class="brief-text" id="brief-text"></p>
+    <ul class="goals" id="brief-goals"></ul>
+    <p class="note" id="brief-tools"></p>
+    <p class="note best-line" id="brief-best"></p>
+    <button class="act primary wide" id="brief-go">Start building</button>
+  </div>
+</div>
+
 <!-- Level complete -->
 <div class="modal" id="complete" hidden role="dialog" aria-modal="true" aria-labelledby="done-title">
   <div class="card">
@@ -81,6 +101,8 @@
     </div>
   </div>
 </div>
+
+<button class="update" id="update" type="button" hidden>Update ready · tap to reload</button>
 
 <script type="module" src="js/main.js"></script>
 </body>

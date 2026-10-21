@@ -1,5 +1,5 @@
-// Screens and HUD: level select, top bar, readout, tool tray, hints, guide, level-complete card.
-import { rate, undo, clearFloor, stats, ruleMet, verifyProgress, TPS, WINDOW_TICKS } from './sim.js';
+// Screens and HUD: level select, top bar, readout, hold timer, tool tray, hints, guide, brief and level-complete cards.
+import { rate, undo, clearFloor, stats, ruleMet, heldSeconds, HOLD_SECONDS, TPS } from './sim.js';
 import { LEVELS, TIERS, PLURAL } from './levels.js';
 import { saveLayout } from './save.js';
 
@@ -20,9 +20,10 @@ const cap = s => s[0].toUpperCase() + s.slice(1);
 export const star = on => `<svg class="star${on ? ' on' : ''}" viewBox="0 0 24 24"><path d="${STAR_PATH}"/></svg>`;
 const stars = (n, of = 3) => Array.from({ length: of }, (_, i) => star(i < n)).join('');
 const ruleText = r => (r.tiles != null ? `≤ ${r.tiles} tiles` : `≤ ${r.buildings} machines`);
+const TOOL_NAMES = { belt: 'Belt', miner: 'Miner', furnace: 'Furnace', assembler: 'Assembler' };
 
 export function isUnlocked(progress, i) {
-  return i === 0 || (progress.best[LEVELS[i - 1].id] || 0) >= 1;
+  return i === 0 || !!progress.unlockAll || (progress.best[LEVELS[i - 1].id] || 0) >= 1;
 }
 
 export function createUI(game, actions) {
@@ -62,10 +63,13 @@ export function createUI(game, actions) {
     saveLayout(game); ui.updateButtons(); ui.setHint('<b>Floor cleared.</b> Undo brings it back.');
   };
   $('back').onclick = () => actions.showLevels();
+  $('lv-info').onclick = () => ui.showBrief(false);
 
   // ---------- play screen ----------
   ui.enterLevel = (index, best, showGuide) => {
     const lv = game.level;
+    ui.levelIndex = index;
+    ui.best = best;
     $('lv-num').textContent = index + 1;
     $('lv-name').textContent = lv.name;
     $('lv-best').innerHTML = stars(best);
@@ -81,13 +85,35 @@ export function createUI(game, actions) {
     if (!ui.guideOn) ui.setHint(lv.brief);
     ui.updateButtons();
     ui.hud();
+    if (best === 0) ui.showBrief(true);
   };
 
-  ui.setBest = n => { $('lv-best').innerHTML = stars(n); };
+  ui.setBest = n => { ui.best = n; $('lv-best').innerHTML = stars(n); };
+
+  // ---------- brief card: the level's mission, reopened by tapping the level title ----------
+  ui.showBrief = first => {
+    const lv = game.level, t = lv.target, tier = TIERS.find(x => x.id === lv.tier);
+    $('brief-kicker').textContent = `Level ${ui.levelIndex + 1} · Tier ${tier.id} ${tier.name}`;
+    $('brief-title').textContent = lv.name;
+    $('brief-text').textContent = lv.brief;
+    const goals = [`<li>${star(true)}<span>Deliver <b>${t.rate} ${PLURAL[t.item]} a minute</b> to the hub and hold it for <b>${HOLD_SECONDS} seconds</b>. Changing the layout restarts the timer.</span></li>`];
+    lv.stars.forEach(rule => goals.push(`<li>${star(true)}<span>…using ${ruleText(rule)}</span></li>`));
+    $('brief-goals').innerHTML = goals.join('');
+    $('brief-tools').textContent = `Tools: ${lv.tools.map(x => TOOL_NAMES[x]).join(', ')}`;
+    $('brief-best').innerHTML = ui.best ? `Your best ${stars(ui.best)}` : '';
+    $('brief-go').textContent = first ? 'Start building' : 'Back to the floor';
+    $('brief').hidden = false;
+  };
+  $('brief-go').onclick = () => { $('brief').hidden = true; };
 
   function guideDone(cond) {
     if (cond === 'delivered') return game.hubTotal > 0;
     if (cond === 'win') return game.wonSinceChange;
+    if (cond.startsWith('notbelt:')) {
+      const [x, y] = cond.slice(8).split(',').map(Number);
+      const c = game.grid[y] && game.grid[y][x];
+      return !c || c.t !== 'belt';
+    }
     if (cond.startsWith('has:')) {
       const t = cond.slice(4);
       return game.grid.some(r => r.some(c => c && c.t === t));
@@ -99,7 +125,9 @@ export function createUI(game, actions) {
     if (!ui.guideOn) return;
     const steps = game.level.guide;
     while (ui.guideStep < steps.length && guideDone(steps[ui.guideStep].until)) ui.guideStep++;
-    if (ui.guideStep >= steps.length) { ui.guideOn = false; $('guide').hidden = true; return; }
+    const done = ui.guideStep >= steps.length;
+    $('timer').classList.toggle('pulse', !done && steps[ui.guideStep].focus === 'timer');
+    if (done) { ui.guideOn = false; $('guide').hidden = true; return; }
     const html = steps[ui.guideStep].text;
     if ($('guide').innerHTML !== html) $('guide').innerHTML = html;
   }
@@ -108,7 +136,6 @@ export function createUI(game, actions) {
     const lv = game.level, t = lv.target;
     const r = rate(game, t.item);
     $('rate').textContent = Math.round(r);
-    $('barfill').style.width = Math.min(100, (r / t.rate) * 100) + '%';
 
     const s = stats(game);
     const rules = lv.stars.map((rule, i) =>
@@ -116,19 +143,18 @@ export function createUI(game, actions) {
     const html = `<div>${s.tiles} tile${s.tiles === 1 ? '' : 's'} · ${s.buildings} machine${s.buildings === 1 ? '' : 's'}</div>${rules}`;
     if ($('rules').innerHTML !== html) $('rules').innerHTML = html;
 
-    // verification status
+    // hold timer: the bar fills over the hold; the text says what's happening
+    const held = heldSeconds(game);
+    let text, cls = '', fill = held / HOLD_SECONDS;
+    if (game.wonSinceChange) { text = 'Target held ✓'; cls = 'done'; fill = 1; }
+    else if (game.tick - game.shortTick < 5 * TPS) { text = 'Fell short · timer restarted'; cls = 'short'; }
+    else if (game.holdStart >= 0) { text = `Holding · ${Math.floor(held)} / ${HOLD_SECONDS} s`; cls = 'on'; }
+    else text = `Hold ${t.rate}/min for ${HOLD_SECONDS} s`;
     const v = $('verify');
-    const settled = game.tick - game.changeTick >= WINDOW_TICKS;
-    let text = '', cls = '';
-    if (game.wonSinceChange) { text = 'Target held'; cls = 'on'; }
-    else if (game.holdTicks > 0 || (!settled && game.windowCount > 0)) {
-      text = `Verifying · ${Math.floor(verifyProgress(game) * 100)}%`; cls = 'on';
-    } else if (settled && game.windowCount > 0) {
-      text = `Short · ${game.windowCount}/${t.rate} last min`; cls = 'short';
-    }
-    v.textContent = text;
+    if (v.textContent !== text) v.textContent = text;
     v.className = 'verify' + (cls ? ' ' + cls : '');
-    $('bar').classList.toggle('met', cls === 'on');
+    $('barfill').style.width = Math.min(100, fill * 100) + '%';
+    $('bar').classList.toggle('met', cls === 'done');
 
     updateGuide();
   };
@@ -158,7 +184,10 @@ export function createUI(game, actions) {
     $('level-list').querySelectorAll('.lv').forEach(b => {
       b.onclick = () => { if (!b.classList.contains('locked')) actions.openLevel(+b.dataset.i); };
     });
+    $('unlock-all').textContent = `Unlock all levels: ${progress.unlockAll ? 'On' : 'Off'}`;
+    $('unlock-all').classList.toggle('armed', !!progress.unlockAll);
   };
+  $('unlock-all').onclick = () => actions.toggleUnlockAll();
 
   // Reset needs a second tap within a few seconds, so it can't happen by accident.
   let resetTimer = null;

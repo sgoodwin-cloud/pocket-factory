@@ -1,6 +1,6 @@
 // Bump VERSION whenever the game changes, together with APP_VERSION in js/main.js: the number after
 // 'pocket-factory-v' must equal APP_VERSION, or installs fail on purpose (see install below).
-const VERSION = 'pocket-factory-v7';
+const VERSION = 'pocket-factory-v8';
 // Every file the game needs offline. Add any new file here.
 const CORE = [
   './',
@@ -28,22 +28,27 @@ const CORE = [
 // - cache: 'reload' skips the phone's own web cache.
 // - ?v=<VERSION> makes each address new to GitHub Pages' CDN, which can otherwise serve the
 //   previous version's files for a few minutes after a deploy (that left v5 files inside v6).
-// - Finally, check main.js really is this version; if not, fail the install so the phone
-//   tries again on its next update check rather than installing old files.
+// - Check js/main.js really is this version. If not (e.g. just after a deploy, before GitHub has
+//   finished publishing), wait and try again with a fresh address, up to 4 times; only then fail.
+//   A failed install can leave an iPhone refusing to retry the same sw.js (Flip 7 v4).
 const APP_VERSION = VERSION.replace('pocket-factory-v', '');
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
-    const c = await caches.open(VERSION);
-    await Promise.all(CORE.map(async u => {
-      const res = await fetch(new Request(`${u}?v=${VERSION}`, { cache: 'reload' }));
-      if (!res.ok) throw new Error(`${u}: ${res.status}`);
-      await c.put(u, res);
-    }));
-    const main = await (await c.match('./js/main.js')).text();
-    if (!main.includes(`APP_VERSION = '${APP_VERSION}'`)) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt) await new Promise(r => setTimeout(r, 3000 * attempt));
+      try {
+        const c = await caches.open(VERSION);
+        await Promise.all(CORE.map(async u => {
+          const res = await fetch(new Request(`${u}?v=${VERSION}&try=${attempt}`, { cache: 'reload' }));
+          if (!res.ok) throw new Error(`${u}: ${res.status}`);
+          await c.put(u, res);
+        }));
+        const marker = await (await c.match('./js/main.js')).text();
+        if (marker.includes(`APP_VERSION = '${APP_VERSION}'`)) return;
+      } catch (err) { /* network hiccup: try again */ }
       await caches.delete(VERSION);
-      throw new Error('fetched files are from an older version; will retry');
     }
+    throw new Error('could not fetch this version\'s files; will retry on the next update check');
   })());
 });
 

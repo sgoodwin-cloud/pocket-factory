@@ -1,6 +1,6 @@
 # Pocket Factory — design and status
 
-Last updated: 21 Oct 2026 · v7
+Last updated: 21 Oct 2026 · v8
 
 A Factorio-style automation puzzle on a tiny grid, for the phone. Each level asks you to deliver a target rate of items to a hub; stars reward doing it in fewer tiles.
 
@@ -86,3 +86,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | v7: the floating "Update ready" button couldn't be tapped on Stuart's iPhone (it floated over other buttons, close to the home bar). Now a full-width bar at the top of the screen, in the page flow, so nothing overlaps it. On branch `fix-update-banner` |
 | 21 Oct 2026 | v7 also fixes updates installing stale files: GitHub Pages' CDN served v5 files to the v6 install, leaving Stuart's phone stuck on v5 with no banner. The service worker now fetches each file with `?v=<VERSION>` and refuses to install unless `main.js` matches its version |
 | 21 Oct 2026 | v7 approved by Stuart; `fix-update-banner` merged to `main` |
+| 21 Oct 2026 | v8: installs retry the version check up to four times with fresh addresses before failing, since a failed install can leave an iPhone stuck on the old version (it happened to Flip 7 v4) |

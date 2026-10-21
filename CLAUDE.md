@@ -3,7 +3,7 @@
 Read `DESIGN.md` first. It holds the milestone status, code structure, save format, release process and decision log. The full design doc is Stuart's Claude doc linked from `DESIGN.md`; the cross-app rules are in the "Artifact App Development" project's `web-app-playbook.md`.
 
 - Plain HTML/CSS/JS ES modules on one canvas, no build step. Keep it fully offline: no runtime network calls, fonts bundled in `fonts/`.
-- On every release, bump `APP_VERSION` in `js/main.js` and `VERSION` in `sw.js` together. Add any new file to `CORE` in `sw.js`.
+- On every release, bump `APP_VERSION` in `js/main.js` and `VERSION` in `sw.js` together, to the same number: the service worker refuses to install if they differ. Add any new file to `CORE` in `sw.js`.
 - The simulation counts whole ticks (20 per second). Never switch timers or win checks to floating-point seconds.
 - Target rates must be even (the win check counts deliveries in a 30-second window).
 - Every level needs a proven solution in `tools/verify-levels.mjs` (layouts in the text format of `js/layout.js`); run `node tools/test-sim.mjs` and `node tools/verify-levels.mjs` after any change to levels or the simulation. Star 3's budget should match the best known solution.

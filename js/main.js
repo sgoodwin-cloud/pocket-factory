@@ -1,6 +1,6 @@
 // Entry point: level flow, progress, the main loop, and offline support with the update banner.
 // Bump APP_VERSION together with VERSION in sw.js on every release.
-const APP_VERSION = '6';
+const APP_VERSION = '7';
 import { LEVELS } from './levels.js';
 import { createGame, setLevel, step, STEP } from './sim.js';
 import { createRenderer } from './render.js';
@@ -110,6 +110,8 @@ if ('serviceWorker' in navigator) {
       // Tap → tell the waiting worker to take over → reload once it has actually switched on.
       const show = w => {
         btn.hidden = false;
+        document.body.classList.add('has-update');
+        renderer.fit();
         btn.onclick = () => {
           const nw = reg.waiting || w;
           btn.textContent = 'Updating…'; btn.disabled = true;

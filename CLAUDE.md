@@ -6,7 +6,7 @@ Read `DESIGN.md` first. It holds the milestone status, code structure, save form
 - On every release, bump `APP_VERSION` in `js/main.js` and `VERSION` in `sw.js` together. Add any new file to `CORE` in `sw.js`.
 - The simulation counts whole ticks (20 per second). Never switch timers or win checks to floating-point seconds.
 - Target rates must be even (the win check counts deliveries in a 30-second window).
-- Every level needs a proven solution in `tools/verify-levels.mjs`; run `node tools/verify-levels.mjs` after any change to levels or the simulation. Star 3's budget should match the best known solution.
+- Every level needs a proven solution in `tools/verify-levels.mjs` (layouts in the text format of `js/layout.js`); run `node tools/test-sim.mjs` and `node tools/verify-levels.mjs` after any change to levels or the simulation. Star 3's budget should match the best known solution.
 - Releases go to a test branch first, with a preview artifact for Stuart; merge to `main` only after he approves.
 - Saves carry `SAVE_VERSION` (`js/save.js`); upgrade old saves in `migrate()`, never wipe them.
 - Never `preventDefault()` touches outside the canvas; keep the global `[hidden]` rule; no `alert()`/`confirm()`.

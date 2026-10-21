@@ -3,7 +3,8 @@ import { layout, loadLayout } from './sim.js';
 
 // Save format. Bump SAVE_VERSION when it changes and upgrade old saves in migrate(); never wipe them.
 //   progress: { v, best: { [levelId]: stars }, last: levelId|null, unlockAll: bool }
-//   layout.<levelId>: rows of [type, dir] or null, matching the level's grid size
+//   layout.<levelId>: rows of [type, dir] or null, matching the level's grid size. Tunnel ends
+//     (types tin/tout, from v5) add a third value, the tunnel length; older saves never have them.
 export const SAVE_VERSION = 1;
 const PREFIX = 'pocketfactory.v1.';
 const layoutKey = levelId => `${PREFIX}layout.${levelId}`;

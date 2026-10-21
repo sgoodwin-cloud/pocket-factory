@@ -15,7 +15,7 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 |---|---|
 | M0 Repo and offline shell | Done, 20 Oct |
 | M1 Control refinements and code split | Done, 20 Oct (no control changes needed) |
-| M2 Level framework, five Tier 1 levels | Built 20 Oct; play-test tweaks (v4) on branch `m2-tweaks` awaiting approval |
+| M2 Level framework, five Tier 1 levels | Done, 21 Oct (v4 play-test tweaks approved and merged) |
 | M3 Logistics (underground belts, splitters, Tier 2) | Next |
 | M4–M7 | Not started |
 
@@ -64,3 +64,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 20 Oct 2026 | Level sizes vary up to 8×12; star rules set per level (provisional: tile budgets) |
 | 20 Oct 2026 | Speed button (1×/2×/4×) added; Reset progress (two taps) added for play-testing |
 | 21 Oct 2026 | v4: hold time halved (about 92 s → about 50 s game time) and made a visible 45-second timer; level 1 teaches the timer; level 2 starts with a line delivering ore and teaches removing a belt; level brief card on first entry and from the level title; "Unlock all levels" switch; brought in line with the app playbook (update banner, version on screen, versioned saves, `DESIGN.md`, `CLAUDE.md`, test-branch releases) |
+| 21 Oct 2026 | v4 approved after preview testing; `m2-tweaks` merged to `main`. M2 complete |

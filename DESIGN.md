@@ -17,7 +17,7 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | M1 Control refinements and code split | Done, 20 Oct (no control changes needed) |
 | M2 Level framework, five Tier 1 levels | Done, 21 Oct (v4 play-test tweaks approved and merged) |
 | M3 Logistics (tunnels, crossings, splitters, Tier 2) | Done, 21 Oct (v5 approved and merged) |
-| M4 Copper and circuits | Built 21 Oct (v6) on branch `m4`, awaiting play-test |
+| M4 Copper and circuits | Done, 21 Oct (v6 approved and merged) |
 | M5 Feel and polish | Next |
 | M6–M7 | Not started |
 
@@ -82,3 +82,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | v5 approved after preview testing; `m3` merged to `main`. M3 complete |
 | 21 Oct 2026 | M4 design: 2 wire per circuit (not Factorio's 3) for whole-number ratios; furnaces lock to one ore at a time; recipe chips rather than a menu. Tier 3 Copper with six levels (two guided: Wire Works, First Circuit), 20 levels in all |
 | 21 Oct 2026 | Every guide step must fit three lines at 390 px: six were four lines, which made the floor jump between steps; all shortened |
+| 21 Oct 2026 | v6 approved after preview testing; `m4` merged to `main`. M4 complete |

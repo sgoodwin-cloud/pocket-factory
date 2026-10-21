@@ -1,5 +1,5 @@
 // Bump VERSION whenever the game changes (together with APP_VERSION in js/main.js), so phones pick up the new copy.
-const VERSION = 'pocket-factory-v6';
+const VERSION = 'pocket-factory-v7';
 // Every file the game needs offline. Add any new file here.
 const CORE = [
   './',

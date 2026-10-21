@@ -1,6 +1,6 @@
 # Pocket Factory — design and status
 
-Last updated: 21 Oct 2026 · v6
+Last updated: 21 Oct 2026 · v7
 
 A Factorio-style automation puzzle on a tiny grid, for the phone. Each level asks you to deliver a target rate of items to a hub; stars reward doing it in fewer tiles.
 
@@ -83,3 +83,4 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | M4 design: 2 wire per circuit (not Factorio's 3) for whole-number ratios; furnaces lock to one ore at a time; recipe chips rather than a menu. Tier 3 Copper with six levels (two guided: Wire Works, First Circuit), 20 levels in all |
 | 21 Oct 2026 | Every guide step must fit three lines at 390 px: six were four lines, which made the floor jump between steps; all shortened |
 | 21 Oct 2026 | v6 approved after preview testing; `m4` merged to `main`. M4 complete |
+| 21 Oct 2026 | v7: the floating "Update ready" button couldn't be tapped on Stuart's iPhone (it floated over other buttons, close to the home bar). Now a full-width bar at the top of the screen, in the page flow, so nothing overlaps it. On branch `fix-update-banner` |

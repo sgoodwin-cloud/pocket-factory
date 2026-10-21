@@ -1,6 +1,7 @@
-// Offline caching. Bump VERSION whenever any file changes so phones pick up the update.
-const VERSION = 'pf-v0.2.1';
-const FILES = [
+// Bump VERSION whenever the game changes (together with APP_VERSION in js/main.js), so phones pick up the new copy.
+const VERSION = 'pocket-factory-v4';
+// Every file the game needs offline. Add any new file here.
+const CORE = [
   './',
   './index.html',
   './manifest.json',
@@ -21,24 +22,31 @@ const FILES = [
   './icons/apple-touch-icon.png',
 ];
 
+// cache: 'reload' skips the phone's web cache, so a new version never stores stale files.
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE.map(u => new Request(u, { cache: 'reload' })))));
 });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-// Cache first, falling back to the network; the page itself falls back to the cached index.
+// The page's "Update ready" banner sends this when tapped.
+self.addEventListener('message', e => { if (e.data === 'skipWaiting') self.skipWaiting(); });
+
+// Cache first; fall back to the game page when offline.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(hit =>
-      hit || fetch(e.request).catch(() => (e.request.mode === 'navigate' ? caches.match('./index.html') : undefined))
-    )
+    caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => {
+      if (res && res.ok && new URL(e.request.url).origin === location.origin) {
+        const copy = res.clone();
+        caches.open(VERSION).then(c => c.put(e.request, copy));
+      }
+      return res;
+    }).catch(() => caches.match('./index.html')))
   );
 });

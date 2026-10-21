@@ -18,10 +18,15 @@ export const RECIPE = {
   assembler: { in: 'plate', need: 2, cap: 6, ticks: 40, out: 'gear' },
 };
 
-// Win rule: the hub must receive the target number of items per 60 s window, measured only
-// after the layout has been left alone for a full window, and keep that up for HOLD more seconds.
-export const WINDOW_TICKS = 60 * TPS;
-export const HOLD_TICKS = 30 * TPS;
+// Win rule: once a target item reaches the hub after the last layout change, a hold timer starts.
+// The line must keep up the target rate until the timer reaches HOLD. While it runs, deliveries
+// are counted over a sliding CHECK window (or since the timer started, if that's shorter); a
+// shortfall restarts the timer at the next delivery. Target rates must be even, so a CHECK
+// window holds a whole number of items.
+export const WINDOW_TICKS = 60 * TPS;   // rate readout window
+export const CHECK_TICKS = 30 * TPS;
+export const HOLD_TICKS = 45 * TPS;
+export const HOLD_SECONDS = HOLD_TICKS / TPS;
 
 export const WHY = {
   off: 'That is off the floor.',
@@ -53,10 +58,10 @@ export function setLevel(game, level) {
 function resetCounters(game) {
   game.tick = 0;
   game.deliveries = [];
-  game.windowCount = 0;   // target items delivered in the last WINDOW_TICKS
   game.hubTotal = 0;
   game.changeTick = 0;
-  game.holdTicks = 0;
+  game.holdStart = -1;      // tick the hold timer started, or -1
+  game.shortTick = -1e9;    // tick the line last fell short
   game.wonSinceChange = false;
 }
 
@@ -92,7 +97,8 @@ export function canPlace(game, x, y, t) {
 // Any change restarts win verification.
 export function markChanged(game) {
   game.changeTick = game.tick;
-  game.holdTicks = 0;
+  game.holdStart = -1;
+  game.shortTick = -1e9;
   game.wonSinceChange = false;
 }
 
@@ -146,7 +152,10 @@ export function scoreLayout(game) {
 // ---------- simulation ----------
 function deliver(game, item) {
   game.deliveries.push([game.tick, item]);
-  if (item === game.level.target.item) { game.hubTotal++; game.windowCount++; }
+  if (item === game.level.target.item) {
+    game.hubTotal++;
+    if (game.holdStart < 0 && !game.wonSinceChange) game.holdStart = game.tick;
+  }
 }
 
 function accept(game, tx, ty, item, fx, fy) {
@@ -190,26 +199,31 @@ export function step(game) {
     c.status = c.busy ? 'working' : (c.out > 0 ? 'blocked' : 'starved');
   }
 
-  // drop deliveries that have left the window
-  const d = game.deliveries, target = game.level.target.item;
-  while (d.length && d[0][0] <= game.tick - WINDOW_TICKS) {
-    if (d.shift()[1] === target) game.windowCount--;
-  }
+  // drop deliveries older than the readout window
+  const d = game.deliveries;
+  while (d.length && d[0][0] <= game.tick - WINDOW_TICKS) d.shift();
 
-  // win verification
-  const settled = game.tick - game.changeTick >= WINDOW_TICKS;
-  if (settled && game.windowCount >= game.level.target.rate) game.holdTicks++;
-  else game.holdTicks = 0;
-  if (game.holdTicks >= HOLD_TICKS && !game.wonSinceChange) {
-    game.wonSinceChange = true;
-    game.onWin(scoreLayout(game));
+  // hold timer
+  if (game.holdStart >= 0 && !game.wonSinceChange) {
+    const { item, rate: target } = game.level.target;
+    const held = game.tick - game.holdStart;
+    const from = Math.max(game.holdStart - 1, game.tick - CHECK_TICKS);
+    let n = 0;
+    for (let i = d.length - 1; i >= 0 && d[i][0] > from; i--) if (d[i][1] === item) n++;
+    const need = Math.floor((Math.min(held, CHECK_TICKS) * target) / (60 * TPS));
+    if (n < need) {
+      game.holdStart = -1;
+      game.shortTick = game.tick;
+    } else if (held >= HOLD_TICKS) {
+      game.wonSinceChange = true;
+      game.onWin(scoreLayout(game));
+    }
   }
 }
 
-// Verification progress 0..1: a full quiet window, then the hold.
-export function verifyProgress(game) {
-  const quiet = Math.min(WINDOW_TICKS, game.tick - game.changeTick);
-  return (quiet + game.holdTicks) / (WINDOW_TICKS + HOLD_TICKS);
+// Seconds on the hold timer (0 when it isn't running).
+export function heldSeconds(game) {
+  return game.holdStart >= 0 ? (game.tick - game.holdStart) / TPS : 0;
 }
 
 // Items of one kind delivered to the hub per minute, over a rolling window of up to 60 s.

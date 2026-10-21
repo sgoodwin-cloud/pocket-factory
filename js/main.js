@@ -1,4 +1,6 @@
-// Entry point: level flow, progress and the main loop.
+// Entry point: level flow, progress, the main loop, and offline support with the update banner.
+// Bump APP_VERSION together with VERSION in sw.js on every release.
+const APP_VERSION = '4';
 import { LEVELS } from './levels.js';
 import { createGame, setLevel, step, STEP } from './sim.js';
 import { createRenderer } from './render.js';
@@ -40,6 +42,12 @@ const actions = {
     resetAll();
     progress.best = {};
     progress.last = null;
+    progress.unlockAll = false;
+    ui.renderLevels(progress);
+  },
+  toggleUnlockAll() {
+    progress.unlockAll = !progress.unlockAll;
+    saveProgress(progress);
     ui.renderLevels(progress);
   },
   next() {
@@ -64,6 +72,7 @@ game.onWin = score => {
   }
 };
 
+document.getElementById('ver').textContent = `v${APP_VERSION}`;
 actions.showLevels();
 
 let lastT = performance.now(), acc = 0, hudT = 0;
@@ -87,11 +96,43 @@ function frame(t) {
 }
 requestAnimationFrame(frame);
 
-// Offline support: cache every file on first load.
+// Offline support + update banner (pattern proven in Swipe Snake, Flip 7 and Phase 10).
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(() => { /* offline install unavailable */ });
-  });
+  (async () => {
+    try {
+      // Only reload on a controller change if a worker was already running (an update), never on first install.
+      const hadController = !!navigator.serviceWorker.controller;
+      const reg = await navigator.serviceWorker.register('sw.js');
+      const btn = document.getElementById('update');
+      let reloading = false;
+      const reload = () => { if (!reloading) { reloading = true; if (playing) saveLayout(game); location.reload(); } };
+      // Tap → tell the waiting worker to take over → reload once it has actually switched on.
+      const show = w => {
+        btn.hidden = false;
+        btn.onclick = () => {
+          const nw = reg.waiting || w;
+          btn.textContent = 'Updating…'; btn.disabled = true;
+          if (!nw || nw.state === 'activated') return reload();
+          nw.addEventListener('statechange', () => { if (nw.state === 'activated') reload(); });
+          nw.postMessage('skipWaiting');
+          setTimeout(reload, 5000);
+        };
+      };
+      // Catch an update whatever stage it's at: already waiting, mid-download, or found later.
+      const track = w => {
+        if (!w) return;
+        const check = () => { if (w.state === 'installed' && navigator.serviceWorker.controller) show(w); };
+        check();
+        w.addEventListener('statechange', check);
+      };
+      track(reg.waiting);
+      track(reg.installing);
+      reg.addEventListener('updatefound', () => track(reg.installing));
+      reg.update().catch(() => {});
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) reload(); });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    } catch (e) { /* no service worker (e.g. artifact preview): the game still works */ }
+  })();
 }
 
 // Exposed for debugging in the browser console.

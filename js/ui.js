@@ -1,5 +1,5 @@
 // Screens and HUD: level select, top bar, readout, hold timer, tool tray, hints, guide, brief and level-complete cards.
-import { rate, undo, clearFloor, stats, ruleMet, heldSeconds, HOLD_SECONDS, TPS } from './sim.js';
+import { rate, undo, clearFloor, stats, ruleMet, heldSeconds, machineRates, isMachine, HOLD_SECONDS, TPS, DIRNAME, NAME, RECIPE, TUNNEL_MAX } from './sim.js';
 import { LEVELS, TIERS, PLURAL } from './levels.js';
 import { saveLayout } from './save.js';
 
@@ -8,6 +8,9 @@ export const HINTS = {
   miner: '<b>Miner</b> · 1 ore every 2 s, must sit on ore. Tap to place, or press and drag to aim.',
   furnace: '<b>Furnace</b> · 1 ore → 1 plate every 2 s. Press and drag to aim its output.',
   assembler: '<b>Assembler</b> · 2 plates → 1 gear every 2 s. Press and drag to aim its output.',
+  tunnel: `<b>Tunnel.</b> Drag from the entrance to the exit in a straight line, up to ${TUNNEL_MAX - 1} tiles underground.`,
+  cross: '<b>Crossing.</b> Tap to place. Two lines pass straight through each other.',
+  split: '<b>Splitter.</b> Tap to place. Hands items in turn to everything it touches.',
   erase: '<b>Remove.</b> Tap or drag across tiles to clear them.',
 };
 
@@ -20,14 +23,34 @@ const cap = s => s[0].toUpperCase() + s.slice(1);
 export const star = on => `<svg class="star${on ? ' on' : ''}" viewBox="0 0 24 24"><path d="${STAR_PATH}"/></svg>`;
 const stars = (n, of = 3) => Array.from({ length: of }, (_, i) => star(i < n)).join('');
 const ruleText = r => (r.tiles != null ? `≤ ${r.tiles} tiles` : `≤ ${r.buildings} machines`);
-const TOOL_NAMES = { belt: 'Belt', miner: 'Miner', furnace: 'Furnace', assembler: 'Assembler' };
+const TOOL_NAMES = { belt: 'Belt', miner: 'Miner', furnace: 'Furnace', assembler: 'Assembler', tunnel: 'Tunnel', cross: 'Crossing', split: 'Splitter' };
 
 export function isUnlocked(progress, i) {
   return i === 0 || !!progress.unlockAll || (progress.best[LEVELS[i - 1].id] || 0) >= 1;
 }
 
 export function createUI(game, actions) {
-  const ui = { tool: 'belt', guideStep: 0, guideOn: false };
+  const ui = { tool: 'belt', guideStep: 0, guideOn: false, selected: null };
+
+  // ---------- inspecting a tapped building ----------
+  ui.select = (x, y) => { ui.selected = x == null ? null : { x, y }; if (ui.selected) ui.setHint(describe()); };
+  ui.isSelected = (x, y) => !!ui.selected && ui.selected.x === x && ui.selected.y === y;
+  ui.getSelected = () => ui.selected;
+  function describe() {
+    const s = ui.selected, c = s && game.grid[s.y] && game.grid[s.y][s.x];
+    if (!c) { ui.selected = null; return ''; }
+    if (isMachine(c.t)) {
+      const m = machineRates(game, c), r = RECIPE[c.t];
+      const uses = m.inItem ? ` from ${Math.round(m.in)} ${PLURAL[m.inItem]}` : '';
+      const state = c.status === 'working' || m.busy >= 0.85 ? `${Math.round(m.busy * 100)}% busy`
+        : `<span class="st-${c.status}">${c.status === 'blocked' ? 'output blocked' : 'waiting for ' + (PLURAL[r.in] || 'input')}</span>`;
+      return `<b>${NAME[c.t]}</b> ${Math.round(m.out)} ${PLURAL[m.item]}/min${uses} · ${state}<br>Output ${DIRNAME[c.d]}. Tap again to turn it.`;
+    }
+    if (c.t === 'tin' || c.t === 'tout') return `<b>${NAME[c.t]}</b> → ${DIRNAME[c.d]} · ${c.len - 1} tile${c.len === 2 ? '' : 's'} underground. Hold to remove both ends.`;
+    if (c.t === 'cross') return '<b>Crossing</b> · two lines pass straight through each other.';
+    if (c.t === 'split') return '<b>Splitter</b> · hands items in turn to everything it touches, skipping any that are full.';
+    return '';
+  }
 
   ui.setHint = (html, err) => {
     const h = $('hint');
@@ -44,6 +67,7 @@ export function createUI(game, actions) {
 
   function selectTool(name) {
     ui.tool = name;
+    ui.selected = null;
     document.querySelectorAll('.tool').forEach(o => o.classList.toggle('on', o.dataset.tool === name));
     ui.setHint(HINTS[name]);
   }
@@ -78,10 +102,13 @@ export function createUI(game, actions) {
     document.querySelectorAll('.tool').forEach(b => {
       b.hidden = b.dataset.tool !== 'erase' && !lv.tools.includes(b.dataset.tool);
     });
+    $('tray').classList.toggle('many', lv.tools.length + 1 > 6);
+    ui.selected = null;
     selectTool(lv.tools.includes(ui.tool) ? ui.tool : 'belt');
     ui.guideOn = !!(showGuide && lv.guide);
     ui.guideStep = 0;
     $('guide').hidden = !ui.guideOn;
+    $('timer').classList.remove('pulse');
     if (!ui.guideOn) ui.setHint(lv.brief);
     ui.updateButtons();
     ui.hud();
@@ -109,6 +136,12 @@ export function createUI(game, actions) {
   function guideDone(cond) {
     if (cond === 'delivered') return game.hubTotal > 0;
     if (cond === 'win') return game.wonSinceChange;
+    if (cond.startsWith('count:')) {
+      const [, t, n] = cond.split(':');
+      let k = 0;
+      for (const r of game.grid) for (const c of r) if (c && c.t === t) k++;
+      return k >= +n;
+    }
     if (cond.startsWith('notbelt:')) {
       const [x, y] = cond.slice(8).split(',').map(Number);
       const c = game.grid[y] && game.grid[y][x];
@@ -136,6 +169,7 @@ export function createUI(game, actions) {
     const lv = game.level, t = lv.target;
     const r = rate(game, t.item);
     $('rate').textContent = Math.round(r);
+    if (ui.selected) { const h = describe(); if (h && $('hint').innerHTML !== h) ui.setHint(h); }
 
     const s = stats(game);
     const rules = lv.stars.map((rule, i) =>

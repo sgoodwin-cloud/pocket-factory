@@ -51,6 +51,11 @@ canvas{display:block;touch-action:none;border-radius:6px}
 .tray{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
 .tool{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;background:var(--panel);border:1.5px solid transparent;border-radius:8px;color:var(--fg);font:500 11px var(--mono);padding:4px 2px;cursor:pointer}
 .tool svg{width:24px;height:24px}
+.tray.many .tool{min-height:50px;font:600 12px var(--display);letter-spacing:.01em;gap:2px;padding:4px 0}
+.tray.many .tool svg{width:21px;height:21px}
+.tray.many{gap:4px}
+.st-blocked{color:var(--bad)}
+.st-starved{color:var(--warn)}
 .tool.on{border-color:var(--accent);background:#2c2a24}
 .tool:focus-visible,.act:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -83,7 +88,7 @@ button{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 .verify.short{color:var(--warn)}
 
 /* Guide banner for coached levels */
-.guide{background:#2c2a24;border:1px solid #4a3f2c;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;color:var(--fg)}
+.guide{box-sizing:border-box;min-height:calc(3 * 1.4em + 18px);background:#2c2a24;border:1px solid #4a3f2c;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.4;color:var(--fg)}
 .guide b{color:var(--accent);font-weight:500}
 
 /* Level select */

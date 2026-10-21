@@ -3,6 +3,7 @@
 // near-miss layouts do NOT win. Run with: node tools/verify-levels.mjs
 import { LEVELS } from '../js/levels.js';
 import { createGame, setLevel, step, canPlace, cell, emptyGrid, loadStarter, TPS, scoreLayout, rate } from '../js/sim.js';
+import { parseLayout } from '../js/layout.js';
 
 // Layouts as [x, y, type, dir]; dir 0 up, 1 right, 2 down, 3 left.
 const U = 0, R = 1, D = 2, L = 3;
@@ -47,6 +48,166 @@ const SOLUTIONS = {
       [1, 5, 'assembler', U], ...col(1, 4, 2, U), [1, 1, 'belt', R],
     ],
   },
+  'assembly-line': {
+    best: [
+      '.. .. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. .. ..',
+      '.. b> b> b^ b^ b< b< ..',
+      '.. b^ .. .. .. .. b^ ..',
+      '.. b^ .. .. .. .. b^ ..',
+      '.. b^ .. .. .. .. b^ ..',
+      '.. b^ .. .. .. .. b^ ..',
+      '.. b^ .. .. .. .. b^ ..',
+      'b> a^ .. .. .. .. a^ b<',
+      'f^ f^ .. .. .. .. f^ f^',
+      'm^ m^ .. .. .. .. m^ m^',
+    ],
+  },
+  'under-the-wall': {
+    tutorial: { add: ['.. .. T^ .. .. ..', '.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. .. t^ .. .. ..'], at: 2, stars: 3 },
+    misses: { 'starter only (no way past the wall)': 'starter' },
+    best: [
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. T^ .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. t^ .. .. ..',
+      '.. .. f^ .. .. ..',
+      '.. .. m^ .. .. ..',
+    ],
+  },
+  'crossroads': {
+    misses: { 'starter only (ore pushed into the plate line)': 'starter' },
+    best: [
+      '.. .. .. .. ..',
+      '.. .. .. b< ..',
+      '.. b^ .. b^ ..',
+      '.. b^ .. b^ ..',
+      'm> x. f> b^ ..',
+      '.. b^ .. .. ..',
+      '.. f^ .. .. ..',
+      '.. m^ .. .. ..',
+    ],
+  },
+  'fork': {
+    misses: {
+      'starter only (delivers ore)': 'starter',
+      'one furnace on the line': ['.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. .. b^ .. .. ..', '.. .. f^ .. .. ..', '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. m> b^ m< .. ..'],
+      'splitter also feeding the hub': ['.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. b^ b^ b^ .. ..', '.. f^ s. f^ .. ..', '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. m> b^ m< .. ..'],
+    },
+    best: [
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. b^ .. b^ .. ..',
+      '.. f^ s. f^ .. ..',
+      '.. .. b^ .. .. ..',
+      '.. .. b^ .. .. ..',
+      '.. m> b^ m< .. ..',
+    ],
+  },
+  'long-haul': {
+    alt: { stars: 2, label: 'no tunnels', rows: [
+      '.. .. .. .. .. ..', '.. .. .. .. .. ..',
+      '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. .. b^ .. .. ..',
+      '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. .. b^ b< .. ..',
+      '.. .. f^ f^ .. ..', '.. .. m^ m^ .. ..',
+    ] },
+    best: [
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. T^ .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. t^ .. .. ..',
+      '.. .. T^ .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. t^ b< .. ..',
+      '.. .. f^ f^ .. ..',
+      '.. .. m^ m^ .. ..',
+    ],
+  },
+  'over-the-ridge': {
+    alt: { stars: 1, label: 'the long way round, no tunnels', rows: [
+      '.. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. ..',
+      '.. .. b^ b< b< b< b<',
+      '.. .. .. .. .. .. b^',
+      '.. .. .. .. .. .. b^',
+      '.. .. .. .. .. .. b^',
+      '.. .. b> b> b> b> b^',
+      '.. f> a^ .. .. .. ..',
+      '.. m^ b^ .. .. .. ..',
+      '.. m> f^ .. .. .. ..',
+    ] },
+    best: [
+      '.. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. ..',
+      '.. .. T^ .. .. .. ..',
+      '.. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. ..',
+      '.. .. t^ .. .. .. ..',
+      '.. f> a^ .. .. .. ..',
+      '.. m^ b^ .. .. .. ..',
+      '.. m> f^ .. .. .. ..',
+    ],
+  },
+  'split-shift': {
+    alt: { stars: 2, label: 'no tunnels', rows: [
+      '.. .. .. .. .. ..', '.. .. .. .. .. ..',
+      '.. .. b^ .. .. ..', '.. .. b^ .. .. ..', '.. .. b^ .. .. ..',
+      '.. b> a^ b< .. ..', '.. f^ s. f^ .. ..', '.. .. b^ .. .. ..', '.. m> b^ m< .. ..',
+    ] },
+    best: [
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. T^ .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. t^ .. .. ..',
+      '.. b> a^ b< .. ..',
+      '.. f^ s. f^ .. ..',
+      '.. .. b^ .. .. ..',
+      '.. m> b^ m< .. ..',
+    ],
+  },
+  'underpass': {
+    misses: { 'only one tunnel': [
+      '.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. .. T^ .. .. ..', '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. .. .. .. .. ..', '.. .. t^ .. .. ..',
+      '.. m> f^ f^ m< ..', '.. .. .. .. .. ..',
+    ] },
+    best: [
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. T^ T^ .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. .. .. .. ..',
+      '.. .. t^ t^ .. ..',
+      '.. m> f^ f^ m< ..',
+      '.. .. .. .. .. ..',
+    ],
+  },
+  'twin-works': {
+    best: [
+      '.. .. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. .. ..',
+      '.. .. b> b^ b^ b< .. ..',
+      '.. .. T^ .. .. T^ .. ..',
+      '.. .. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. .. ..',
+      '.. .. .. .. .. .. .. ..',
+      '.. .. t^ .. .. t^ .. ..',
+      '.. f> a^ .. .. a^ f< ..',
+      '.. m^ b^ .. .. b^ m^ ..',
+      '.. m> f^ .. .. f^ m< ..',
+    ],
+  },
 };
 
 function build(game, spec) {
@@ -57,12 +218,19 @@ function build(game, spec) {
     for (const [x, y, t, d] of spec.add) game.grid[y][x] = cell(t, d);
     return;
   }
+  if (spec.add) {
+    // starter plus extra text rows, placed from row spec.at
+    loadStarter(game);
+    for (const [x, y, t, d, len] of parseLayout(spec.add)) game.grid[y + spec.at][x] = cell(t, d, len);
+    return;
+  }
+  const items = typeof spec[0] === 'string' ? parseLayout(spec) : spec;
   game.grid = emptyGrid(game);
-  for (const [x, y, t, d] of spec) {
+  for (const [x, y, t, d, len] of items) {
     const why = canPlace(game, x, y, t);
     if (why) throw new Error(`${game.level.id}: can't place ${t} at ${x},${y} (${why})`);
     if (game.grid[y][x]) throw new Error(`${game.level.id}: two things at ${x},${y}`);
-    game.grid[y][x] = cell(t, d);
+    game.grid[y][x] = cell(t, d, len);
   }
 }
 
@@ -79,6 +247,7 @@ function run(level, spec, seconds = 300) {
 let failures = 0;
 for (const level of LEVELS) {
   if (level.target.rate % 2) { console.log(`✗ ${level.id}: target rate must be even`); failures++; }
+  const used = new Set();
   const sol = SOLUTIONS[level.id];
   if (!sol) { console.log(`✗ ${level.id}: no solution written`); failures++; continue; }
   const r = run(level, sol.best);
@@ -91,6 +260,12 @@ for (const level of LEVELS) {
     const tOk = t.win && t.win.stars === sol.tutorial.stars;
     if (!tOk) failures++;
     console.log(`   ${tOk ? '✓' : '✗'} guided fix wins with ${t.win ? t.win.stars : 0} stars at ${t.win ? t.win.at + 's' : '-'}`);
+  }
+  if (sol.alt) {
+    const a = run(level, sol.alt.rows);
+    const aOk = a.win && a.win.stars === sol.alt.stars;
+    if (!aOk) failures++;
+    console.log(`   ${aOk ? '✓' : '✗'} ${sol.alt.label}: ${a.win ? a.win.stars : 0} star(s), ${a.score.stats.tiles} tiles (expected ${sol.alt.stars})`);
   }
   for (const [label, spec] of Object.entries(sol.misses || {})) {
     const m = run(level, spec);

@@ -2,11 +2,13 @@
 import { createGame, step, cell, emptyGrid, rate, TPS, removeAt, layout, loadLayout } from '../js/sim.js';
 import { parseLayout } from '../js/layout.js';
 
-// A test level: ore on every tile (so miners can go anywhere), a hub, optional rocks.
-function level(w, h, hub, { rocks = [], item = 'ore' } = {}) {
+// A test level: iron ore on every tile (so miners can go anywhere) except any copper tiles,
+// a hub, optional rocks.
+function level(w, h, hub, { rocks = [], item = 'ore', copper = [] } = {}) {
   const ore = [];
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) ore.push([x, y]);
-  return { id: 'test', w, h, ore, rocks, hub, target: { item, rate: 30 }, tools: [], stars: [] };
+  const isCu = (x, y) => copper.some(([a, b]) => a === x && b === y);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!isCu(x, y)) ore.push([x, y]);
+  return { id: 'test', w, h, ore, copper, rocks, hub, target: { item, rate: 30 }, tools: [], stars: [] };
 }
 function run(lv, rows, seconds = 120) {
   const game = createGame(lv);
@@ -72,12 +74,39 @@ const sp = run(level(5, 6, { x: 1, y: 0, w: 3, h: 2 }, { item: 'plate' }), [
 ]);
 check('splitter feeds two furnaces evenly', perMin(sp, 'plate') >= 59, `${perMin(sp, 'plate')} plates/min`);
 
-// 5. Tunnel ends are saved with their length, and removing one end removes both.
+// 5. Copper: a miner on copper digs copper ore, a furnace smelts it, a wire assembler makes 2 per cycle.
+const wire = run(level(3, 6, { x: 0, y: 0, w: 3, h: 2 }, { item: 'wire', copper: [[1, 5]] }), [
+  '.. .. ..', '.. .. ..', '.. b^ ..', '.. w^ ..', '.. f^ ..', '.. m^ ..',
+]);
+check('one copper line makes 60 wire a minute', perMin(wire, 'wire') >= 59, `${perMin(wire, 'wire')} wire/min`);
+
+// 6. Two lines merge into one circuit assembler: 30 circuits a minute.
+const circ = run(level(5, 6, { x: 1, y: 0, w: 3, h: 2 }, { item: 'circuit', copper: [[4, 5]] }), [
+  '.. .. .. .. ..',
+  '.. .. .. .. ..',
+  '.. .. b^ .. ..',
+  '.. b> c^ b< ..',
+  '.. f^ .. w^ ..',
+  '.. m^ .. f^ m<',
+]);
+check('iron plates and wire merge into 30 circuits a minute', perMin(circ, 'circuit') >= 29, `${perMin(circ, 'circuit')} circuits/min`);
+
+// 7. A furnace fed a mixed belt smelts one kind of ore at a time and still makes 30 plates a minute.
+const mixed = run(level(3, 7, { x: 0, y: 0, w: 3, h: 2 }, { item: 'plate', copper: [[2, 5]] }), [
+  '.. .. ..', '.. .. ..', '.. b^ ..', '.. f^ ..', '.. b^ ..', 'm> b^ m<', '.. .. ..',
+]);
+const mp = perMin(mixed, 'plate'), mc = perMin(mixed, 'cu-plate');
+check('a furnace on a mixed belt makes both plates, 30 a minute in all', mp > 5 && mc > 5 && mp + mc >= 29, `${mp} iron + ${mc} copper plates/min`);
+
+// 8. Tunnel ends and recipes are saved, and removing one tunnel end removes both.
 const g = createGame(level(8, 1, { x: 0, y: 0, w: 0, h: 0 }));
 g.grid = emptyGrid(g);
 for (const [x, y, t, d, len] of parseLayout(['.. .. t> .. .. T> .. ..'])) g.grid[y][x] = cell(t, d, len);
 loadLayout(g, JSON.parse(JSON.stringify(layout(g))));
 check('tunnel length survives save and load', g.grid[0][2].len === 3 && g.grid[0][5].len === 3);
+g.grid[0][0] = cell('assembler', 1, 'circuit');
+loadLayout(g, JSON.parse(JSON.stringify(layout(g))));
+check('assembler recipe survives save and load', g.grid[0][0].recipe === 'circuit');
 removeAt(g, 5, 0);
 check('removing one tunnel end removes both', !g.grid[0][2] && !g.grid[0][5]);
 

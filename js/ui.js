@@ -1,13 +1,20 @@
 // Screens and HUD: level select, top bar, readout, hold timer, tool tray, hints, guide, brief and level-complete cards.
-import { rate, undo, clearFloor, stats, ruleMet, heldSeconds, machineRates, isMachine, HOLD_SECONDS, TPS, DIRNAME, NAME, RECIPE, TUNNEL_MAX } from './sim.js';
+import { rate, undo, clearFloor, stats, ruleMet, heldSeconds, machineRates, isMachine, setRecipe, beginChange, HOLD_SECONDS, TPS, DIRNAME, NAME, RECIPES, TUNNEL_MAX } from './sim.js';
 import { LEVELS, TIERS, PLURAL } from './levels.js';
 import { saveLayout } from './save.js';
+
+const RECIPE_NAME = { gear: 'Gear', wire: 'Wire', circuit: 'Circuit' };
+const RECIPE_COL = { gear: '#d9a441', wire: '#e8a862', circuit: '#3fae5a' };
+const recipeText = r => {
+  const ins = Object.entries(RECIPES[r].in).map(([it, k]) => `${k} ${k > 1 ? PLURAL[it] : PLURAL[it].replace(/s$/, '')}`).join(' + ');
+  return `${ins} → ${RECIPES[r].n} ${RECIPES[r].n > 1 ? PLURAL[RECIPES[r].out] : PLURAL[RECIPES[r].out].replace(/s$/, '')}`;
+};
 
 export const HINTS = {
   belt: '<b>Belt.</b> Drag to lay a path. Tap a belt to turn it. Hold anything to remove it.',
   miner: '<b>Miner</b> · 1 ore every 2 s, must sit on ore. Tap to place, or press and drag to aim.',
   furnace: '<b>Furnace</b> · 1 ore → 1 plate every 2 s. Press and drag to aim its output.',
-  assembler: '<b>Assembler</b> · 2 plates → 1 gear every 2 s. Press and drag to aim its output.',
+  assembler: '<b>Assembler</b> · one recipe every 2 s. Press and drag to aim its output.',
   tunnel: `<b>Tunnel.</b> Drag from the entrance to the exit in a straight line, up to ${TUNNEL_MAX - 1} tiles underground.`,
   cross: '<b>Crossing.</b> Tap to place. Two lines pass straight through each other.',
   split: '<b>Splitter.</b> Tap to place. Hands items in turn to everything it touches.',
@@ -30,21 +37,24 @@ export function isUnlocked(progress, i) {
 }
 
 export function createUI(game, actions) {
-  const ui = { tool: 'belt', guideStep: 0, guideOn: false, selected: null };
+  const ui = { tool: 'belt', guideStep: 0, guideOn: false, selected: null, recipe: 'gear' };
 
   // ---------- inspecting a tapped building ----------
-  ui.select = (x, y) => { ui.selected = x == null ? null : { x, y }; if (ui.selected) ui.setHint(describe()); };
+  ui.select = (x, y) => { ui.selected = x == null ? null : { x, y }; if (ui.selected) ui.setHint(describe()); showRecipes(); };
   ui.isSelected = (x, y) => !!ui.selected && ui.selected.x === x && ui.selected.y === y;
   ui.getSelected = () => ui.selected;
   function describe() {
     const s = ui.selected, c = s && game.grid[s.y] && game.grid[s.y][s.x];
-    if (!c) { ui.selected = null; return ''; }
+    if (!c) { ui.selected = null; showRecipes(); return ''; }
     if (isMachine(c.t)) {
-      const m = machineRates(game, c), r = RECIPE[c.t];
-      const uses = m.inItem ? ` from ${Math.round(m.in)} ${PLURAL[m.inItem]}` : '';
+      const m = machineRates(game, c);
+      const uses = m.uses.length ? ` from ${m.uses.map(u => `${Math.round(u.perMin)} ${PLURAL[u.item]}`).join(' + ')}` : '';
+      const need = c.t === 'furnace' ? { [c.ore || 'ore']: 1 } : c.t === 'assembler' ? RECIPES[c.recipe].in : {};
+      const missing = Object.keys(need).filter(it => (c.inv[it] || 0) < need[it]);
       const state = c.status === 'working' || m.busy >= 0.85 ? `${Math.round(m.busy * 100)}% busy`
-        : `<span class="st-${c.status}">${c.status === 'blocked' ? 'output blocked' : 'waiting for ' + (PLURAL[r.in] || 'input')}</span>`;
-      return `<b>${NAME[c.t]}</b> ${Math.round(m.out)} ${PLURAL[m.item]}/min${uses} · ${state}<br>Output ${DIRNAME[c.d]}. Tap again to turn it.`;
+        : `<span class="st-${c.status}">${c.status === 'blocked' ? 'output blocked' : 'waiting for ' + (missing.map(it => PLURAL[it]).join(' and ') || 'input')}</span>`;
+      const name = c.t === 'assembler' && c.recipe !== 'gear' ? `${RECIPE_NAME[c.recipe]} assembler` : NAME[c.t];
+      return `<b>${name}</b> ${Math.round(m.out)} ${PLURAL[m.item]}/min${uses} · ${state}<br>Output ${DIRNAME[c.d]}. Tap again to turn it.`;
     }
     if (c.t === 'tin' || c.t === 'tout') return `<b>${NAME[c.t]}</b> → ${DIRNAME[c.d]} · ${c.len - 1} tile${c.len === 2 ? '' : 's'} underground. Hold to remove both ends.`;
     if (c.t === 'cross') return '<b>Crossing</b> · two lines pass straight through each other.';
@@ -65,11 +75,42 @@ export function createUI(game, actions) {
   };
   game.onChange = ui.updateButtons;
 
+  // ---------- recipe chips: under the hint, for the assembler tool or a selected assembler ----------
+  function selectedAssembler() {
+    const s = ui.selected, c = s && game.grid[s.y] && game.grid[s.y][s.x];
+    return c && c.t === 'assembler' ? c : null;
+  }
+  function showRecipes() {
+    const list = game.level.recipes, box = $('recipes');
+    const sel = selectedAssembler();
+    const show = list.length > 1 && (sel || (ui.tool === 'assembler' && !ui.selected));
+    box.hidden = !show;
+    if (!show) return;
+    const cur = sel ? sel.recipe : ui.recipe;
+    box.innerHTML = `<span class="lbl">${sel ? 'Makes' : 'Recipe'}</span>` + list.map(r =>
+      `<button class="chip-r${r === cur ? ' on' : ''}" data-r="${r}"><i style="background:${RECIPE_COL[r]}"></i>${RECIPE_NAME[r]}</button>`).join('');
+    box.querySelectorAll('.chip-r').forEach(b => b.onclick = () => {
+      const r = b.dataset.r, c = selectedAssembler();
+      if (c) {
+        if (c.recipe !== r) { game.gestureSnap = false; beginChange(game); setRecipe(c, r); saveLayout(game); }
+        ui.setHint(describe());
+      } else {
+        ui.recipe = r;
+        ui.setHint(`<b>${RECIPE_NAME[r]}</b> · ${recipeText(r)} every 2 s. Drag to aim.`);
+      }
+      showRecipes();
+    });
+  }
+  ui.showRecipes = showRecipes;
+
   function selectTool(name) {
     ui.tool = name;
     ui.selected = null;
     document.querySelectorAll('.tool').forEach(o => o.classList.toggle('on', o.dataset.tool === name));
-    ui.setHint(HINTS[name]);
+    ui.setHint(name === 'assembler' && game.level.recipes.length > 1
+      ? `<b>${RECIPE_NAME[ui.recipe]}</b> · ${recipeText(ui.recipe)} every 2 s. Drag to aim.`
+      : HINTS[name]);
+    showRecipes();
   }
 
   document.querySelectorAll('.tool').forEach(b => b.addEventListener('click', () => selectTool(b.dataset.tool)));
@@ -103,6 +144,8 @@ export function createUI(game, actions) {
       b.hidden = b.dataset.tool !== 'erase' && !lv.tools.includes(b.dataset.tool);
     });
     $('tray').classList.toggle('many', lv.tools.length + 1 > 6);
+    $('hintbox').classList.toggle('tall', lv.recipes.length > 1);
+    ui.recipe = lv.recipes[0];
     ui.selected = null;
     selectTool(lv.tools.includes(ui.tool) ? ui.tool : 'belt');
     ui.guideOn = !!(showGuide && lv.guide);
@@ -126,7 +169,8 @@ export function createUI(game, actions) {
     const goals = [`<li>${star(true)}<span>Deliver <b>${t.rate} ${PLURAL[t.item]} a minute</b> to the hub and hold it for <b>${HOLD_SECONDS} seconds</b>. Changing the layout restarts the timer.</span></li>`];
     lv.stars.forEach(rule => goals.push(`<li>${star(true)}<span>…using ${ruleText(rule)}</span></li>`));
     $('brief-goals').innerHTML = goals.join('');
-    $('brief-tools').textContent = `Tools: ${lv.tools.map(x => TOOL_NAMES[x]).join(', ')}`;
+    $('brief-tools').innerHTML = `Tools: ${lv.tools.map(x => TOOL_NAMES[x]).join(', ')}` +
+      (lv.recipes.length > 1 ? `<br>Assembler recipes: ${lv.recipes.map(r => `${RECIPE_NAME[r]} (${recipeText(r)})`).join('; ')}` : '');
     $('brief-best').innerHTML = ui.best ? `Your best ${stars(ui.best)}` : '';
     $('brief-go').textContent = first ? 'Start building' : 'Back to the floor';
     $('brief').hidden = false;
@@ -136,6 +180,10 @@ export function createUI(game, actions) {
   function guideDone(cond) {
     if (cond === 'delivered') return game.hubTotal > 0;
     if (cond === 'win') return game.wonSinceChange;
+    if (cond.startsWith('recipe:')) {
+      const r = cond.slice(7);
+      return game.grid.some(row => row.some(c => c && c.t === 'assembler' && c.recipe === r));
+    }
     if (cond.startsWith('count:')) {
       const [, t, n] = cond.split(':');
       let k = 0;

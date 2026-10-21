@@ -1,5 +1,5 @@
 // Canvas drawing: terrain, grid, buildings, items, overlays.
-import { DX, DY, RECIPE, BELT_SPEED, BELT_TICKS, inB, isMachine, tunnelPartner } from './sim.js';
+import { DX, DY, BELT_SPEED, BELT_TICKS, CYCLE, inB, isMachine, tunnelPartner, recipeOf, RECIPES } from './sim.js';
 import { PLURAL } from './levels.js';
 
 export const HOLD_MS = 450;
@@ -53,17 +53,39 @@ export function createRenderer(cv, floorEl, game) {
     ctx.beginPath(); ctx.arc(cx, cy, rad * 0.38, 0, 7); ctx.fill();
   }
 
-  function drawItem(item, x, y) {
-    const S = r.S, rad = S * 0.13;
-    if (item === 'ore') {
-      ctx.fillStyle = C.ore;
+  // Item colours, also used for the little input gauges on machines.
+  const ITEM_COL = { ore: C.ore, plate: C.plate, gear: C.gear, 'cu-ore': '#4fa58f', 'cu-plate': '#d6844f', wire: '#e8a862', circuit: '#3fae5a' };
+
+  function nugget(x, y, rad, fill, edge) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(x - rad, y); ctx.lineTo(x - rad * 0.3, y - rad); ctx.lineTo(x + rad, y - rad * 0.4);
+    ctx.lineTo(x + rad * 0.7, y + rad); ctx.lineTo(x - rad * 0.5, y + rad * 0.8);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = edge; ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  function drawItem(item, x, y, scale = 1) {
+    const S = r.S, rad = S * 0.13 * scale;
+    if (item === 'ore') nugget(x, y, rad, C.ore, '#a8694a');
+    else if (item === 'cu-ore') nugget(x, y, rad, ITEM_COL['cu-ore'], '#7fd0bc');
+    else if (item === 'plate' || item === 'cu-plate') {
+      ctx.fillStyle = ITEM_COL[item]; rr(x - rad, y - rad * 0.75, rad * 2, rad * 1.5, 2); ctx.fill();
+    } else if (item === 'wire') {
+      ctx.strokeStyle = ITEM_COL.wire; ctx.lineWidth = Math.max(1.2, rad * 0.35); ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(x - rad, y); ctx.lineTo(x - rad * 0.3, y - rad); ctx.lineTo(x + rad, y - rad * 0.4);
-      ctx.lineTo(x + rad * 0.7, y + rad); ctx.lineTo(x - rad * 0.5, y + rad * 0.8);
-      ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#a8694a'; ctx.lineWidth = 1; ctx.stroke();
-    } else if (item === 'plate') {
-      ctx.fillStyle = C.plate; rr(x - rad, y - rad * 0.75, rad * 2, rad * 1.5, 2); ctx.fill();
+      for (let i = 0; i <= 12; i++) {
+        const a = (i / 12) * Math.PI * 4, rx = x - rad + (i / 12) * rad * 2;
+        ctx.lineTo(rx, y + Math.sin(a) * rad * 0.55);
+      }
+      ctx.stroke();
+    } else if (item === 'circuit') {
+      ctx.fillStyle = ITEM_COL.circuit; rr(x - rad, y - rad, rad * 2, rad * 2, rad * 0.3); ctx.fill();
+      ctx.fillStyle = '#e8c35a';
+      for (const [dx, dy] of [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]]) {
+        ctx.beginPath(); ctx.arc(x + dx * rad, y + dy * rad, rad * 0.16, 0, 7); ctx.fill();
+      }
+      ctx.fillStyle = '#1e5a2e'; rr(x - rad * 0.3, y - rad * 0.3, rad * 0.6, rad * 0.6, 1); ctx.fill();
     } else {
       drawGear(x, y, rad * 0.85, C.gear);
     }
@@ -148,25 +170,33 @@ export function createRenderer(cv, floorEl, game) {
         ctx.fillStyle = busy ? '#f08a3a' : '#2a211d';
         ctx.beginPath(); ctx.arc(0, S * 0.04, S * 0.17, 0, 7); ctx.fill();
         if (busy) { ctx.fillStyle = 'rgba(240,162,58,.25)'; ctx.beginPath(); ctx.arc(0, S * 0.04, S * 0.27, 0, 7); ctx.fill(); }
-      } else {
+      } else if (!c || !c.recipe || c.recipe === 'gear') {
         ctx.rotate(busy ? animT * 2 : 0);
         drawGear(0, 0, S * 0.15, busy ? C.gear : '#7d6a45');
+      } else {
+        // other recipes show what they make, upright whichever way the machine faces
+        ctx.rotate((-d * Math.PI) / 2);
+        ctx.globalAlpha = alpha * (busy ? 1 : 0.6);
+        drawItem(RECIPES[c.recipe].out, 0, 0, 1.25);
       }
     }
     ctx.restore();
-    if (c && isMachine(t)) {
+    if (c && c.done && isMachine(t)) {
       // status pip
       ctx.fillStyle = c.status === 'working' ? C.ok : c.status === 'blocked' ? C.bad : C.warn;
       ctx.beginPath(); ctx.arc(px + S * 0.2, py + S * 0.2, S * 0.065, 0, 7); ctx.fill();
       // progress
       if (c.busy) {
         ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(px + S * 0.18, py + S * 0.78, S * 0.64, S * 0.05);
-        ctx.fillStyle = C.ok; ctx.fillRect(px + S * 0.18, py + S * 0.78, S * 0.64 * Math.min(1, c.timer / RECIPE[t].ticks), S * 0.05);
+        ctx.fillStyle = C.ok; ctx.fillRect(px + S * 0.18, py + S * 0.78, S * 0.64 * Math.min(1, c.timer / CYCLE), S * 0.05);
       }
-      // queued inputs
-      if (RECIPE[t].in) {
-        ctx.fillStyle = t === 'furnace' ? C.ore : C.plate;
-        for (let i = 0; i < c.inv; i++) ctx.fillRect(px + S * 0.8 - i * S * 0.08, py + S * 0.14, S * 0.05, S * 0.09);
+      // queued inputs: one row of ticks per ingredient, top right
+      let row = 0;
+      for (const item of Object.keys(recipeOf(c).in)) {
+        ctx.fillStyle = ITEM_COL[item];
+        const n = c.inv[item] || 0;
+        for (let i = 0; i < n; i++) ctx.fillRect(px + S * 0.8 - i * S * 0.07, py + S * (0.12 + row * 0.12), S * 0.045, S * 0.08);
+        row++;
       }
     }
   }
@@ -184,6 +214,13 @@ export function createRenderer(cv, floorEl, game) {
         ctx.fillStyle = C.ore;
         for (let i = 0; i < 4; i++) {
           const h = (x * 73 + y * 151 + i * 97) % 100;
+          ctx.beginPath(); ctx.arc(px + S * (0.18 + (h % 7) / 10), py + S * (0.18 + ((h >> 2) % 7) / 10), S * 0.055, 0, 7); ctx.fill();
+        }
+      } else if (tr === 'copper') {
+        ctx.fillStyle = '#1b2826'; ctx.fillRect(px, py, S, S);
+        ctx.fillStyle = ITEM_COL['cu-ore'];
+        for (let i = 0; i < 4; i++) {
+          const h = (x * 61 + y * 137 + i * 89) % 100;
           ctx.beginPath(); ctx.arc(px + S * (0.18 + (h % 7) / 10), py + S * (0.18 + ((h >> 2) % 7) / 10), S * 0.055, 0, 7); ctx.fill();
         }
       } else if (tr === 'rock') {
@@ -259,7 +296,7 @@ export function createRenderer(cv, floorEl, game) {
         ctx.moveTo(ax * S + S / 2, ay * S + S / 2); ctx.lineTo(bx * S + S / 2, by * S + S / 2); ctx.stroke(); ctx.restore();
       }
       if (g.ghost) {
-        drawBuilding(g.tool, g.dir, g.x * S, g.y * S, null, 0.6);
+        drawBuilding(g.tool, g.dir, g.x * S, g.y * S, g.tool === 'assembler' ? { recipe: g.recipe, inv: {}, status: '' } : null, 0.6);
         ctx.strokeStyle = g.ghostBad ? C.bad : C.accent; ctx.lineWidth = 2.5;
         rr(g.x * S + 2, g.y * S + 2, S - 4, S - 4, 6); ctx.stroke();
       }

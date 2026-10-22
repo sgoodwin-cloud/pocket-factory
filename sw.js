@@ -1,6 +1,6 @@
 // Bump VERSION whenever the game changes, together with APP_VERSION in js/main.js: the number after
 // 'pocket-factory-v' must equal APP_VERSION, or installs fail on purpose (see install below).
-const VERSION = 'pocket-factory-v8';
+const VERSION = 'pocket-factory-v9';
 // Every file the game needs offline. Add any new file here.
 const CORE = [
   './',

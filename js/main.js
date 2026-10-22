@@ -1,6 +1,6 @@
 // Entry point: level flow, progress, the main loop, and offline support with the update banner.
 // Bump APP_VERSION together with VERSION in sw.js on every release.
-const APP_VERSION = '8';
+const APP_VERSION = '9';
 import { LEVELS } from './levels.js';
 import { createGame, setLevel, step, STEP } from './sim.js';
 import { createRenderer } from './render.js';
@@ -23,6 +23,7 @@ const actions = {
     current = i;
     setLevel(game, LEVELS[i]);
     loadSavedLayout(game);
+    renderer.resetFx();
     game.running = true;
     progress.last = LEVELS[i].id;
     saveProgress(progress);
@@ -60,14 +61,21 @@ const ui = createUI(game, actions);
 const input = attachInput(cv, game, renderer, ui);
 renderer.selected = ui.getSelected;
 
+game.onDeliver = renderer.delivered;
 game.onWin = score => {
   const id = game.level.id;
   const prev = progress.best[id] || 0;
+  renderer.celebrate();
   if (score.stars > prev) {
     progress.best[id] = score.stars;
     saveProgress(progress);
     ui.setBest(score.stars);
-    ui.showComplete(score, prev, current + 1 < LEVELS.length);
+    // let the sparks fly from the hub before the card covers the floor
+    const lv = current;
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setTimeout(() => {
+      if (playing && current === lv) ui.showComplete(score, prev, current + 1 < LEVELS.length, LEVELS[current + 1]);
+    }, reduce ? 0 : 900);
   } else {
     ui.setHint(`<b>Target held again.</b> Best is still ${prev} star${prev === 1 ? '' : 's'}.`);
   }

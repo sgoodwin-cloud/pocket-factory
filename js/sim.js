@@ -79,7 +79,7 @@ export function cell(t, d, extra, born = 0) {
 }
 
 export function createGame(level) {
-  const game = { running: true, speed: 1, onChange: () => {}, onWin: () => {} };
+  const game = { running: true, speed: 1, onChange: () => {}, onWin: () => {}, onDeliver: () => {} };
   setLevel(game, level);
   return game;
 }
@@ -246,8 +246,10 @@ export function scoreLayout(game) {
 }
 
 // ---------- simulation ----------
-function deliver(game, item) {
+// fx..ty (where it came from and the hub tile it entered) are only for the renderer's animation.
+function deliver(game, item, fx, fy, tx, ty) {
   game.deliveries.push([game.tick, item]);
+  game.onDeliver(item, fx, fy, tx, ty);
   if (item === game.level.target.item) {
     game.hubTotal++;
     if (game.holdStart < 0 && !game.wonSinceChange) game.holdStart = game.tick;
@@ -257,7 +259,7 @@ function deliver(game, item) {
 // Offer an item from (fx, fy) to the tile (tx, ty). Returns true if it was taken.
 function accept(game, tx, ty, item, fx, fy) {
   if (!inB(game, tx, ty)) return false;
-  if (game.terrain[ty][tx] === 'hub') { deliver(game, item); return true; }
+  if (game.terrain[ty][tx] === 'hub') { deliver(game, item, fx, fy, tx, ty); return true; }
   const c = game.grid[ty][tx];
   if (!c) return false;
   const dir = dirOf(tx - fx, ty - fy); // direction the item is travelling

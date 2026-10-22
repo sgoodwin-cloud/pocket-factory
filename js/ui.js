@@ -294,26 +294,37 @@ export function createUI(game, actions) {
   };
 
   // ---------- level complete ----------
-  ui.showComplete = (score, prevBest, hasNext) => {
+  // Stars already earned show straight away; new ones pop in one after another (CSS delays).
+  ui.showComplete = (score, prevBest, hasNext, nextLevel) => {
     const lv = game.level, t = lv.target;
-    $('done-kicker').textContent = prevBest > 0 ? 'Improved' : 'Level complete';
-    $('done-title').textContent = score.stars === 3 ? 'Perfect layout' : 'Target held';
-    $('done-stars').innerHTML = stars(score.stars);
-    const checks = [`<li><span class="y">✓</span>${t.rate} ${PLURAL[t.item]} a minute, held steady</li>`];
+    $('done-kicker').textContent = `Level ${ui.levelIndex + 1} · ${lv.name}`;
+    $('done-title').textContent = score.stars === 3 ? 'Perfect layout' : prevBest > 0 ? 'Improved' : 'Target held';
+    let k = 0;
+    $('done-stars').innerHTML = Array.from({ length: 3 }, (_, i) => {
+      const on = i < score.stars, fresh = on && i >= prevBest;
+      return star(on).replace('class="star', `${fresh ? `style="--d:${k++}" ` : ''}class="star${fresh ? ' fresh' : ''}`);
+    }).join('');
+    $('done-stats').innerHTML = [
+      [`${t.rate}<small>/min</small>`, `${cap(PLURAL[t.item])} held`],
+      [score.stats.tiles, 'Tiles'],
+      [score.stats.buildings, 'Machines'],
+    ].map(([v, l]) => `<div><b>${v}</b><span>${l}</span></div>`).join('');
+    const checks = [`<li><span class="y">✓</span>Hold ${t.rate} ${PLURAL[t.item]} a minute</li>`];
     lv.stars.forEach((rule, i) => {
       const used = rule.tiles != null ? `${score.stats.tiles} tiles` : `${score.stats.buildings} machines`;
       checks.push(`<li><span class="${score.met[i + 1] ? 'y">✓' : 'x">–'}</span>${ruleText(rule)} (you used ${used})</li>`);
     });
-    $('done-checks').innerHTML = checks.join('');
+    $('done-checks').innerHTML = checks.map((c, i) => c.replace('<li>', `<li style="--i:${i}">`)).join('');
     $('done-note').textContent =
-      score.stars === 3 ? '' :
-      prevBest > 0 ? `New best: ${score.stars} stars.` :
-      'Come back and tighten the layout for the rest.';
+      score.stars === 3 ? 'Every star earned. Nothing left to tighten here.' :
+      'Keep optimising to tighten the layout for the rest.';
     $('done-next').textContent = hasNext ? 'Next level' : 'All levels';
+    $('done-upnext').innerHTML = hasNext && nextLevel ? `Up next: <b>${nextLevel.name}</b>` : 'That was the last level, for now.';
     $('complete').hidden = false;
   };
   $('done-stay').onclick = () => { $('complete').hidden = true; };
   $('done-next').onclick = () => { $('complete').hidden = true; actions.next(); };
+  $('done-levels').onclick = () => { $('complete').hidden = true; actions.showLevels(); };
 
   return ui;
 }

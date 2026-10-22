@@ -1,5 +1,5 @@
 // Canvas drawing: terrain, grid, buildings, items, overlays.
-import { DX, DY, BELT_SPEED, BELT_TICKS, CYCLE, inB, isMachine, tunnelPartner, recipeOf, RECIPES } from './sim.js';
+import { DX, DY, BELT_SPEED, BELT_TICKS, CYCLE, HOLD_SECONDS, inB, isMachine, tunnelPartner, recipeOf, heldSeconds, RECIPES } from './sim.js';
 import { PLURAL } from './levels.js';
 
 export const HOLD_MS = 450;
@@ -15,6 +15,64 @@ export function createRenderer(cv, floorEl, game) {
 
   const r = { S: 40, dpr: 1 };
   let animT = 0;
+
+  // ---------- effects (M5) ----------
+  // Effects run on real time, so a building still pops in while the game is paused. None of this
+  // touches the simulation: it only watches the grid and the hub deliveries.
+  const motionOK = () => !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  let fx = [];                    // { kind, t0, dur, ... }
+  const firstSeen = new WeakMap(); // cell → time it first appeared (pop-in)
+  const lastCraft = new WeakMap(); // cell → { n: last completion tick, t: time of the pulse }
+  let prevGrid = null, before = null, quiet = true, hubBump = -1e9;
+  r.resetFx = () => { fx = []; prevGrid = null; quiet = true; hubBump = -1e9; };
+  const easeBack = p => { const c = 1.7; p -= 1; return 1 + (c + 1) * p * p * p + c * p * p; };
+  r.delivered = (item, fx0, fy0, tx, ty) => {
+    if (!motionOK() || fx.length > 120) return;
+    fx.push({ kind: 'sink', item, x: (fx0 + tx) / 2 + 0.5, y: (fy0 + ty) / 2 + 0.5, dx: tx - fx0, dy: ty - fy0, t0: performance.now(), dur: 320 });
+    hubBump = performance.now();
+  };
+  r.celebrate = () => {
+    if (!motionOK()) return;
+    const hb = game.level.hub, cx = hb.x + hb.w / 2, cy = hb.y + hb.h / 2, now = performance.now();
+    const cols = [C.accent, C.ok, C.gear, C.plate, '#e8a862'];
+    for (let i = 0; i < 36; i++) {
+      const a = Math.random() * Math.PI * 2, v = 2.5 + Math.random() * 4.5;
+      fx.push({ kind: 'spark', x: cx, y: cy, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2.5, col: cols[i % cols.length], spin: Math.random() * 6, t0: now, dur: 900 + Math.random() * 500 });
+    }
+    fx.push({ kind: 'flash', t0: now, dur: 700 });
+  };
+  function popScale(c, x, y, now) {
+    let t = firstSeen.get(c);
+    if (t == null) {
+      // a tile that held the same building last frame (undo rebuilds every cell) doesn't pop
+      const same = before && before[y] && before[y][x] && before[y][x].t === c.t;
+      t = quiet || same || !motionOK() ? -1e9 : now;
+      firstSeen.set(c, t);
+    }
+    const p = (now - t) / 220;
+    return p >= 1 ? 1 : 0.4 + 0.6 * easeBack(Math.max(0, p));
+  }
+  function craftScale(c, now) {
+    if (!isMachine(c.t) || !c.done.length) return 1;
+    const n = c.done[c.done.length - 1];
+    let k = lastCraft.get(c);
+    if (!k) { lastCraft.set(c, { n, t: -1e9 }); return 1; }
+    if (k.n !== n) { k.n = n; k.t = motionOK() ? now : -1e9; }
+    const p = (now - k.t) / 240;
+    return p >= 1 ? 1 : 1 + 0.12 * Math.sin(p * Math.PI);
+  }
+  const PUFF_COL = { belt: '#5d6872', tin: '#5d6872', tout: '#5d6872', cross: '#6b7680', split: '#a49cd6', miner: '#8a949b', furnace: '#f08a3a', assembler: '#7d8c94' };
+  function watchRemovals(now) {
+    const { W, H, grid } = game;
+    before = prevGrid;
+    if (prevGrid && prevGrid.length === H && prevGrid[0].length === W && !quiet && motionOK()) {
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const was = prevGrid[y][x];
+        if (was && !grid[y][x]) fx.push({ kind: 'puff', x: x + 0.5, y: y + 0.5, col: PUFF_COL[was.t] || C.muted, t0: now, dur: 300 });
+      }
+    }
+    prevGrid = grid.map(row => row.slice());
+  }
 
   function fit() {
     const b = floorEl.getBoundingClientRect();
@@ -125,11 +183,12 @@ export function createRenderer(cv, floorEl, game) {
     ctx.closePath(); ctx.fill();
   }
 
-  function drawBuilding(t, d, px, py, c, alpha) {
+  function drawBuilding(t, d, px, py, c, alpha, scale = 1) {
     const S = r.S;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(px + S / 2, py + S / 2);
+    if (scale !== 1) ctx.scale(scale, scale);
     ctx.rotate((d * Math.PI) / 2);
     if (t === 'belt') {
       beltStrip(-S * 0.5, S * 0.5);
@@ -164,12 +223,18 @@ export function createRenderer(cv, floorEl, game) {
       ctx.beginPath(); ctx.moveTo(-S * 0.12, -S * 0.38); ctx.lineTo(0, -S * 0.52); ctx.lineTo(S * 0.12, -S * 0.38); ctx.closePath(); ctx.fill();
       const busy = c && c.busy;
       if (t === 'miner') {
+        // the drill bobs while it works
+        if (busy) ctx.translate(0, Math.sin(animT * 14) * S * 0.035);
         ctx.fillStyle = busy ? '#c9d1d6' : '#8a949b';
         ctx.beginPath(); ctx.moveTo(-S * 0.15, S * 0.2); ctx.lineTo(0, -S * 0.2); ctx.lineTo(S * 0.15, S * 0.2); ctx.closePath(); ctx.fill();
       } else if (t === 'furnace') {
         ctx.fillStyle = busy ? '#f08a3a' : '#2a211d';
         ctx.beginPath(); ctx.arc(0, S * 0.04, S * 0.17, 0, 7); ctx.fill();
-        if (busy) { ctx.fillStyle = 'rgba(240,162,58,.25)'; ctx.beginPath(); ctx.arc(0, S * 0.04, S * 0.27, 0, 7); ctx.fill(); }
+        if (busy) {
+          // the fire flickers
+          const f = 0.18 + 0.1 * (Math.sin(animT * 11) * 0.6 + Math.sin(animT * 17.3) * 0.4);
+          ctx.fillStyle = `rgba(240,162,58,${f.toFixed(3)})`; ctx.beginPath(); ctx.arc(0, S * 0.04, S * (0.25 + f * 0.12), 0, 7); ctx.fill();
+        }
       } else if (!c || !c.recipe || c.recipe === 'gear') {
         ctx.rotate(busy ? animT * 2 : 0);
         drawGear(0, 0, S * 0.15, busy ? C.gear : '#7d6a45');
@@ -203,6 +268,8 @@ export function createRenderer(cv, floorEl, game) {
 
   r.draw = (dtAnim, g) => {
     animT += dtAnim;
+    const now = performance.now();
+    watchRemovals(now);
     const S = r.S, { W, H, terrain, grid, level } = game;
     ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
     ctx.fillStyle = C.floor; ctx.fillRect(0, 0, W * S, H * S);
@@ -237,11 +304,26 @@ export function createRenderer(cv, floorEl, game) {
     const hb = level.hub, hx = hb.x * S, hy = hb.y * S, hcx = hx + (hb.w * S) / 2, hcy = hy + (hb.h * S) / 2;
     ctx.fillStyle = C.panel; rr(hx + 3, hy + 3, hb.w * S - 6, hb.h * S - 6, 8); ctx.fill();
     ctx.strokeStyle = C.accent; ctx.lineWidth = 2; ctx.stroke();
+    // hold timer: a ring that fills round the hub while the target is being held
+    const held = heldSeconds(game), won = game.wonSinceChange;
+    if (held > 0 || won) {
+      const per = 2 * (hb.w * S - 6 + hb.h * S - 6), p = won ? 1 : Math.min(1, held / HOLD_SECONDS);
+      ctx.save();
+      ctx.strokeStyle = won ? C.ok : '#ffd08a'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.setLineDash([per * p, per]);
+      rr(hx + 3, hy + 3, hb.w * S - 6, hb.h * S - 6, 8); ctx.stroke();
+      ctx.restore();
+    }
     ctx.fillStyle = C.accent; ctx.font = `700 ${Math.round(S * 0.42)}px ${DISPLAY}`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('HUB', hcx, hcy - S * 0.2);
-    ctx.fillStyle = C.muted; ctx.font = `500 ${Math.round(S * 0.24)}px ${MONO}`;
-    ctx.fillText(`${game.hubTotal} ${PLURAL[level.target.item]}`, hcx, hcy + S * 0.3);
+    // the count bumps up a little with each delivery
+    const bp = (now - hubBump) / 260, bump = bp < 1 ? 1 + 0.18 * Math.sin(bp * Math.PI) : 1;
+    ctx.save();
+    ctx.translate(hcx, hcy + S * 0.3); ctx.scale(bump, bump);
+    ctx.fillStyle = bp < 1 ? C.fg : C.muted; ctx.font = `500 ${Math.round(S * 0.24)}px ${MONO}`;
+    ctx.fillText(`${game.hubTotal} ${PLURAL[level.target.item]}`, 0, 0);
+    ctx.restore();
     // tunnel pairings: a faint dashed line between the two ends
     ctx.save();
     ctx.strokeStyle = 'rgba(160,172,182,.35)'; ctx.lineWidth = Math.max(1.5, S * 0.04); ctx.setLineDash([S * 0.12, S * 0.12]);
@@ -258,8 +340,9 @@ export function createRenderer(cv, floorEl, game) {
     // buildings
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grid[y][x];
-      if (c) drawBuilding(c.t, c.d, x * S, y * S, c, 1);
+      if (c) drawBuilding(c.t, c.d, x * S, y * S, c, 1, popScale(c, x, y, now) * craftScale(c, now));
     }
+    quiet = false;
     // items in transit
     const along = (x, y, dir, prog, item) => {
       const o = (prog / BELT_TICKS - 0.5) * S;
@@ -274,6 +357,34 @@ export function createRenderer(cv, floorEl, game) {
       else if (c.t === 'split' && c.item) {
         const k = 0.5 * (1 - Math.min(1, c.prog / BELT_TICKS)) * S;
         drawItem(c.item, x * S + S / 2 + DX[c.from] * k, y * S + S / 2 + DY[c.from] * k);
+      }
+    }
+    // effects: items sinking into the hub, removal puffs, win sparks
+    fx = fx.filter(f => now - f.t0 < f.dur);
+    for (const f of fx) {
+      const p = Math.max(0, (now - f.t0) / f.dur);
+      if (f.kind === 'sink') {
+        ctx.save(); ctx.globalAlpha = 1 - p;
+        drawItem(f.item, (f.x + f.dx * p * 0.6) * S, (f.y + f.dy * p * 0.6) * S, 1 - p * 0.7);
+        ctx.restore();
+      } else if (f.kind === 'puff') {
+        ctx.save(); ctx.globalAlpha = 0.8 * (1 - p); ctx.fillStyle = f.col;
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + 0.4, d = S * (0.12 + p * 0.38);
+          ctx.beginPath(); ctx.arc(f.x * S + Math.cos(a) * d, f.y * S + Math.sin(a) * d, S * 0.07 * (1 - p * 0.6), 0, 7); ctx.fill();
+        }
+        ctx.restore();
+      } else if (f.kind === 'spark') {
+        const t = (now - f.t0) / 1000, x = (f.x + f.vx * t) * S, y = (f.y + f.vy * t + 4.5 * t * t) * S;
+        ctx.save(); ctx.globalAlpha = 1 - p * p; ctx.fillStyle = f.col;
+        ctx.translate(x, y); ctx.rotate(f.spin + t * 8);
+        ctx.fillRect(-S * 0.06, -S * 0.03, S * 0.12, S * 0.06);
+        ctx.restore();
+      } else if (f.kind === 'flash') {
+        ctx.save(); ctx.globalAlpha = 0.5 * (1 - p); ctx.strokeStyle = C.ok; ctx.lineWidth = 3 + p * 10;
+        const g2 = p * S * 0.6;
+        rr(hx + 3 - g2, hy + 3 - g2, hb.w * S - 6 + g2 * 2, hb.h * S - 6 + g2 * 2, 8 + g2); ctx.stroke();
+        ctx.restore();
       }
     }
     // selected building (tapped to inspect)

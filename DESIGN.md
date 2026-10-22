@@ -1,6 +1,6 @@
 # Pocket Factory — design and status
 
-Last updated: 21 Oct 2026 · v8
+Last updated: 22 Oct 2026 · v9 (branch m5)
 
 A Factorio-style automation puzzle on a tiny grid, for the phone. Each level asks you to deliver a target rate of items to a hub; stars reward doing it in fewer tiles.
 
@@ -18,7 +18,7 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | M2 Level framework, five Tier 1 levels | Done, 21 Oct (v4 play-test tweaks approved and merged) |
 | M3 Logistics (tunnels, crossings, splitters, Tier 2) | Done, 21 Oct (v5 approved and merged) |
 | M4 Copper and circuits | Done, 21 Oct (v6 approved and merged) |
-| M5 Feel and polish | Next |
+| M5 Feel and polish | In progress: animations and level-complete screen (v9, branch `m5`) |
 | M6–M7 | Not started |
 
 ## Files
@@ -26,7 +26,7 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | File | Responsibility |
 |---|---|
 | `js/sim.js` | Grid state, whole-tick simulation (belts, tunnels, crossings, splitters, machines), hub delivery, rates, hold timer and win, undo, scoring, per-machine rates |
-| `js/render.js` | Canvas drawing: terrain, grid, buildings, items, gesture overlays |
+| `js/render.js` | Canvas drawing: terrain, grid, buildings, items, gesture overlays, and effects (pop-in, removal puffs, craft pulses, hub sinks, hold ring, win sparks) that watch the grid but never touch the simulation |
 | `js/input.js` | Pointer gestures: belt drag, place and aim, tunnel drag, tap to inspect or rotate, hold to remove |
 | `js/levels.js` | Tiers and levels as data (text maps or coordinates, target, tools, star budgets, starter layout, guide steps) |
 | `js/layout.js` | Text layout format (two-character tokens) for starters, solutions and tests |
@@ -87,3 +87,5 @@ A Factorio-style automation puzzle on a tiny grid, for the phone. Each level ask
 | 21 Oct 2026 | v7 also fixes updates installing stale files: GitHub Pages' CDN served v5 files to the v6 install, leaving Stuart's phone stuck on v5 with no banner. The service worker now fetches each file with `?v=<VERSION>` and refuses to install unless `main.js` matches its version |
 | 21 Oct 2026 | v7 approved by Stuart; `fix-update-banner` merged to `main` |
 | 21 Oct 2026 | v8: installs retry the version check up to four times with fresh addresses before failing, since a failed install can leave an iPhone stuck on the old version (it happened to Flip 7 v4) |
+| 22 Oct 2026 | M5 scope: Stuart chose animations and a proper level-complete screen first; sound and settings next, stats and extra hints last |
+| 22 Oct 2026 | v9: buildings pop in when placed and puff when removed; machines pulse when they finish a batch, miners bob and furnaces flicker; items sink into the hub and the count bumps; a ring round the hub fills with the hold timer; sparks burst from the hub on a win, then the card. New card: level name, new stars pop in one by one, stats tiles (rate, tiles, machines), up next, and a Level select link. All animation respects reduced motion. The sim only gained an `onDeliver` hook |
